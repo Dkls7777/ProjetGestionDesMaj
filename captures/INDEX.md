@@ -6,3 +6,4 @@
 | 002 | 002-disque-c-apres-nettoyage-54go-libres.png | Préparation | Disque C: avec 54,8 Go libres après nettoyage | Espace disque libéré, suffisant pour une VM Windows |
 | 003 | 003-virtualbox-vm-existantes-aucune-windows.png | Préparation | Gestionnaire VirtualBox, VM existantes (aucune sous Windows) | État initial de VirtualBox avant création du poste PC01 |
 | 004 | 004-virtualbox-version-7.2.8.png | Préparation | Fenêtre À propos : VirtualBox 7.2.8 r173730 | Version de l'hyperviseur utilisé |
+| 005 | 005-github-menu-new-repository.png | Préparation | Menu « + » de GitHub avant création du dépôt | Hors rapport (capture de navigation) |
