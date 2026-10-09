@@ -27,6 +27,13 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 ### Difficultés
 - Espace disque insuffisant pour une VM. Résolu par nettoyage du disque C:.
 
+### Dépôt Git
+- Dépôt GitHub privé créé : https://github.com/Dkls7777/ProjetGestionDesMaj (capture 006).
+- Dépôt local sur l'hôte : C:\Users\dossa\ProjetGestionDesMaj, placé hors de Documents pour éviter la synchronisation OneDrive.
+- Premier push effectué (3 commits, branche main).
+- Commandes clés (PowerShell Windows) : `git init -b main`, `git remote add origin <url>`, `git push -u origin main`.
+
 ### Reste à faire
+- Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle.
 - Créer la VM PC01 et installer Windows.
 - Partie 1 : connectivité, computers.txt, activation de WinRM, Enter-PSSession, Invoke-Command.
