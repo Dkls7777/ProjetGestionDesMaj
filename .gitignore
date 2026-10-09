@@ -1,0 +1,11 @@
+# Fichiers generes a l'execution
+output/
+*.log
+# Secrets
+*.cred
+*.clixml
+secrets/
+# Divers
+*.iso
+Thumbs.db
+~$*
