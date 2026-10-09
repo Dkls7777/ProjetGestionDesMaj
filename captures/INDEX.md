@@ -48,3 +48,4 @@
 | 044 | 044-pc01-fuseau-date-dernier-demarrage.png | Partie 2 | PC01 : fuseau Romance Standard Time (Paris), date système correcte, LastBootUpTime au 09/10/2026 18:37:31 | Vérification locale de la date de dernier démarrage renvoyée par le script |
 | 045 | 045-pc01-terminal-erreur-pendant-extinction.png | Partie 2 | PC01 : erreur 0xd000003a au lancement de PowerShell pendant l'extinction de Windows | Hors rapport (terminal ouvert pendant le redémarrage) |
 | 046 | 046-pc01-redemarrage-fige.png | Partie 2 | PC01 figé sur « Redémarrage en cours » plusieurs minutes après Restart-Computer | Hors rapport, sauf si le blocage est documenté comme difficulté |
+| 047 | 047-script-02-apres-redemarrage-pc01.png | Partie 2 | Inventaire après un vrai redémarrage de PC01 : Accessible, dernier démarrage 10/10/2026 00:53, Windows Update Stopped | La règle de pare-feu WinRM persiste après redémarrage et la date de dernier démarrage est mise à jour |

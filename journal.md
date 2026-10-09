@@ -146,6 +146,26 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 - Intérêt pour le Patch Management : avec le démarrage rapide, « éteindre puis rallumer » n'est pas un redémarrage. Un poste peut garder longtemps des correctifs en attente de redémarrage. La date de dernier démarrage de l'inventaire sert justement à repérer ces postes.
 - Les paramètres régionaux de PC01 sont en anglais (dates au format américain). Le script impose son propre format `dd/MM/yyyy HH:mm`, donc l'inventaire reste homogène quel que soit le poste.
 
+### Test de persistance après redémarrage de PC01
+- `Restart-Computer` dans PC01. Pendant l'extinction, une exécution du script a relevé Windows Update en `StopPending` avec l'ancienne date de démarrage : le script rapporte l'état réel à l'instant de la mesure, y compris un état transitoire.
+- Difficulté : PC01 est resté figé plus de 5 minutes sur « Redémarrage en cours » (capture 046). Résolu par Machine > Redémarrer dans VirtualBox.
+- Après redémarrage (capture 047), sans aucune intervention sur PC01 :
+  - PC01 est Accessible, donc la règle de pare-feu WinRM limitée à 192.168.56.1 persiste ;
+  - le dernier démarrage passe à 10/10/2026 00:53, ce qui confirme l'explication du démarrage rapide ;
+  - Windows Update est `Stopped`, état normal : le service wuauserv est à démarrage manuel déclenché et ne tourne que lorsqu'une recherche de mises à jour est en cours. Un état Stopped ne signifie donc pas que Windows Update est désactivé.
+- Exemple de résultat versionné : `exemples/Inventory.csv`.
+
+## Partie 3 : inventaire des correctifs
+
+### Script
+- `scripts/03-Inventaire-Correctifs.ps1` :
+  - sur chaque poste accessible, `Get-HotFix | Select-Object HotFixID, Description, InstalledOn, InstalledBy` par `Invoke-Command`. La sélection est faite côté poste distant pour que la date arrive déjà sous forme de date, sans dépendre des paramètres régionaux ;
+  - postes inaccessibles ignorés avec un avertissement, sans interrompre le script (`try/catch` et `continue`) ;
+  - tri par poste puis par date d'installation décroissante, export dans `output/PatchesInventory.csv` ;
+  - synthèse par poste : nombre de correctifs, date du plus récent, KB du plus récent.
+- Limite : `InstalledOn` ne donne que le jour, pas l'heure. Quand plusieurs correctifs sont installés le même jour (cas de PC01), le « dernier » est départagé par le numéro de KB le plus élevé, ce qui est un choix arbitraire mais stable d'une exécution à l'autre.
+- Limite : `Get-HotFix` ne liste que les correctifs enregistrés dans Win32_QuickFixEngineering. Certaines mises à jour (pilotes, définitions antivirus, applications du Store) n'y figurent pas.
+
 ### Reste à faire
 - Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle.
 - Partie 3 : inventaire des correctifs (PatchesInventory.csv).
