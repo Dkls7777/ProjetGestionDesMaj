@@ -78,7 +78,26 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 ### computers.txt et script de disponibilité (questions 2 et 3)
 - `config/computers.txt` : PC01 (192.168.56.102) et PC03 (192.168.56.150), poste fictif sans machine derrière, pour tester le cas inaccessible.
 - `scripts/01-Test-Parc.ps1` : lit l'inventaire, ignore les lignes vides, les commentaires et les lignes mal formées, teste chaque poste avec `Test-Connection -Count 1 -Quiet`, produit un objet par poste (Poste, AdresseIP, Etat).
+- Test sur DKLS777 : PC01 Accessible, PC03 Inaccessible, résultat conforme à l'attendu (capture 028).
 - Choix : l'hôte n'est pas listé comme poste supervisé pour ne pas ouvrir WinRM sur une machine personnelle connectée à un Wi-Fi partagé.
+
+### Activation de WinRM sur PC01 (question 4)
+- État initial : `Get-Service WinRM` renvoie Stopped.
+- `Enable-PSRemoting -Force` dans PC01 (terminal administrateur), réussi du premier coup (capture 029). La commande a :
+  - démarré le service WinRM et passé son démarrage en automatique ;
+  - créé l'écouteur HTTP (port 5985) ;
+  - activé l'exception de pare-feu WinRM ;
+  - configuré LocalAccountTokenFilterPolicy, qui donne les droits d'administration à distance aux comptes locaux administrateurs.
+- À retenir pour la partie 8 : LocalAccountTokenFilterPolicy élargit la surface d'attaque (un compte local administrateur compromis devient utilisable à distance avec tous ses privilèges).
+
+- Vérification : `Get-Service WinRM` renvoie Running (capture 030).
+
+### Première session distante (question 5)
+- Contexte : pas de domaine Active Directory, donc pas de Kerberos. L'authentification se fait en NTLM, qui ne permet pas au client de vérifier l'identité du serveur. PowerShell refuse la connexion tant que la cible n'est pas déclarée dans les TrustedHosts du client.
+- Sur l'hôte (PowerShell Windows en administrateur), capture 031 :
+  - `Start-Service WinRM` (nécessaire pour accéder au lecteur WSMan:)
+  - `Set-Item WSMan:\localhost\Client\TrustedHosts -Value "192.168.56.102" -Force`
+- `Enter-PSSession -ComputerName 192.168.56.102 -Credential PC01\admin` : saisie du mot de passe (capture 032), puis invite `[192.168.56.102]: PS C:\Users\admin\Documents>`. La session distante fonctionne.
 
 ### Reste à faire
 - Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle.
