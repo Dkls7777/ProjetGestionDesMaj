@@ -1,6 +1,8 @@
 # Fichiers generes a l'execution
 output/
 *.log
+# Les exemples de resultats sont versionnes, y compris le journal
+!exemples/*.log
 # Secrets
 *.cred
 *.clixml

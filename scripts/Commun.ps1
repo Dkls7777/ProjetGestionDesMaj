@@ -58,3 +58,18 @@ function Get-CorrectifsRequis {
         $kb
     }
 }
+
+function Write-Journal {
+    # Ajoute une ligne horodatee au fichier journal, champs separes par " ; "
+    # Exemple : Write-Journal -Path $log -Champs "PC01", "Non conforme", "KB5124010"
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Champs
+    )
+
+    $horodatage = Get-Date -Format "dd/MM/yyyy HH:mm:ss"
+    $ligne = (@($horodatage) + $Champs) -join " ; "
+    Add-Content -Path $Path -Value $ligne -Encoding UTF8
+}

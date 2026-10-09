@@ -1,0 +1,3 @@
+﻿"Poste";"AdresseIP";"Accessibilite";"Windows";"DernierDemarrage";"WindowsUpdate";"KBRequises";"KBManquantes";"ListeManquantes";"Conformite";"DateControle";"Erreur"
+"PC01";"192.168.56.102";"Accessible";"Microsoft Version d’évaluation de Windows 11 Entreprise (10.0.26200)";"10/10/2026 00:53";"Stopped";"3";"1";"KB5124010";"NON CONFORME";"10/10/2026 01:30:16";""
+"PC03";"192.168.56.150";"Inaccessible";"-";"-";"-";"3";"-";"";"INACCESSIBLE";"10/10/2026 01:30:16";"Aucune reponse au ping"

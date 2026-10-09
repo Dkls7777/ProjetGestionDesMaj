@@ -201,6 +201,40 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 - KB5124010 mise en commentaire dans required-patches.txt (capture 054), puis contrôle du 10/10/2026 01:15:29 (capture 055) : 2 KB requises, PC01 CONFORME, taux de 100 % (1 poste conforme sur 1 contrôlé).
 - Les deux tests montrent que l'état d'un même poste dépend entièrement de la politique : c'est l'illustration directe de la question 7.
 
+- Politique remise à 3 KB, contrôle final du 10/10/2026 01:17:21 (capture 056). ComplianceReport.csv contient pour chaque poste : KB requises, nombre et liste des KB manquantes, état, date du contrôle et erreur éventuelle. Exemple versionné dans `exemples/`.
+- Partie 4 terminée.
+
+## Partie 6 : rapport de sécurité
+
+### Choix d'architecture
+- Les scripts 01 à 04 interrogent chacun le parc séparément. Pour le rapport, un script principal `scripts/PatchManager.ps1` fait un audit complet en une seule passe : un seul `Invoke-Command` par poste récupère la version de Windows, le dernier démarrage, l'état de Windows Update et la liste des KB installées. Moins de connexions, et toutes les mesures d'un poste datent du même instant.
+- Les scripts 01 à 04 restent dans le dépôt comme étapes de construction, chacun répondant à une partie du sujet.
+
+### Fichiers
+- `scripts/Commun.ps1` : ajout de `Write-Journal`, qui écrit une ligne `date heure ; champ ; champ` en fin de fichier (`Add-Content`), donc l'historique des exécutions est conservé.
+- `scripts/PatchManager.ps1` produit :
+  - `output/SecurityReport.csv` : une ligne par poste avec les 11 informations demandées ;
+  - `output/SecurityReport.html` : synthèse globale, section des postes nécessitant une intervention, détail par poste, états en couleur ;
+  - `output/PatchManager.log` : début d'audit, état de chaque poste, rapport généré, fin d'audit.
+- Synthèse globale : total, accessibles, inaccessibles, conformes, non conformes, total de correctifs manquants, taux de conformité sur les postes accessibles.
+- Sécurité du rapport HTML : les valeurs issues des postes distants passent par `[System.Net.WebUtility]::HtmlEncode` avant insertion dans la page, pour qu'un nom ou une valeur contenant du HTML ne puisse pas être interprété par le navigateur.
+- Détail pratique : les accents de la page HTML sont écrits en entités (`&eacute;`), ce qui garde le script en ASCII pur et évite les problèmes d'encodage de PowerShell 5.1.
+- `.gitignore` : exception `!exemples/*.log` pour pouvoir versionner un exemple de journal.
+
+### Résultat de la partie 6, console
+- `PatchManager.ps1` exécuté sans erreur du premier coup, audit du 10/10/2026 01:24:33 (capture 057).
+- Synthèse : 2 postes, 1 accessible, 1 inaccessible, 0 conforme, 1 non conforme, 1 correctif manquant, taux de conformité 0 %.
+- Postes nécessitant une intervention : PC01 (NON CONFORME, KB5124010 manquante) et PC03 (INACCESSIBLE, aucune réponse au ping).
+
+### Résultat de la partie 6, rapport HTML et journal
+- `SecurityReport.html` (captures 058 et 059) : accents corrects, synthèse globale, section des postes à traiter (NON CONFORME en rouge, INACCESSIBLE en jaune), détail par poste avec les 11 informations demandées.
+- `PatchManager.log` (capture 060) : début d'audit, PC01 accessible puis non conforme avec la KB manquante, PC03 inaccessible, rapport généré, fin d'audit.
+- Second audit à 01:30:16 : ses lignes s'ajoutent à la suite du premier (capture 062). L'historique est bien conservé.
+- Mesure : un audit de 2 postes dure environ 13 secondes, dont 8 à 9 pour la connexion WinRM à PC01 et 4 pour l'attente du ping de PC03. Sur un grand parc, il faudrait paralléliser (`Invoke-Command` accepte une liste de machines).
+- Entre les deux audits, Windows Update est passé de Running à Stopped : le service s'arrête de lui-même après usage.
+- Exemples versionnés dans `exemples/` : SecurityReport.csv, SecurityReport.html, PatchManager.log.
+- Partie 6 terminée.
+
 ### Reste à faire
 - Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle.
-- Partie 4 : contrôle de conformité (required-patches.txt, ComplianceReport.csv).
+- Partie 7 : notification par mail en cas d'anomalie (serveur SMTP de test à installer).
