@@ -33,6 +33,22 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 - Premier push effectué (3 commits, branche main).
 - Commandes clés (PowerShell Windows) : `git init -b main`, `git remote add origin <url>`, `git push -u origin main`.
 
+### Réseau du lab
+- Réseau privé hôte VirtualBox déjà présent : VirtualBox Host-Only Ethernet Adapter, 192.168.56.1/24, DHCP activé (capture 011). L'hôte y porte l'adresse 192.168.56.1.
+
+### Création de la VM PC01
+- ISO : Windows 11 Entreprise évaluation 26200.6584 (25H2), x64, fr-FR (capture 012).
+- Matériel : 4096 Mo, 2 processeurs, EFI (capture 014). Disque VDI de 50 Go en allocation dynamique (capture 015).
+- Choix : installation sans assistance de VirtualBox. Elle crée directement le compte local `admin` avec mot de passe et nomme la machine PC01, ce qui évite l'écran de compte Microsoft et le renommage manuel.
+- Conséquence : la VM démarre dès la fin de l'assistant, donc la deuxième interface réseau (réseau privé hôte) sera ajoutée après l'installation, VM éteinte.
+
+### Difficulté : PC01 reste sur un écran noir
+- Symptôme : après la création, fenêtre de la VM noire pendant 20 minutes, y compris après un redémarrage (captures 016 et 017).
+- Vérification 1 (PowerShell Windows) : taille réelle du disque virtuel, restée à 0 Go, donc Windows ne s'est jamais installé.
+  `Get-ChildItem "$HOME\VirtualBox VMs\PC01\*.vdi" | Select-Object Name, @{n='Go';e={[math]::Round($_.Length/1GB,2)}}`
+- Vérification 2 : lecture de `VBox.log`. Ligne clé : `HM: HMR3Init: Attempting fall back to NEM: VT-x is not available`. L'hyperviseur Windows (Hyper-V) est actif sur l'hôte, VirtualBox ne peut pas utiliser VT-x directement et passe par l'API Hyper-V (mode NEM). Le firmware UEFI de la VM se fige ensuite au chargement de `PciHostBridgeDxe.efi`, aux deux démarrages, avant même d'atteindre l'ISO.
+- Cause retenue : conflit entre VirtualBox (VM en UEFI, exigé par Windows 11) et Hyper-V actif sur l'hôte.
+
 ### Reste à faire
 - Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle.
 - Créer la VM PC01 et installer Windows.
