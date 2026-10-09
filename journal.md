@@ -49,7 +49,37 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 - Vérification 2 : lecture de `VBox.log`. Ligne clé : `HM: HMR3Init: Attempting fall back to NEM: VT-x is not available`. L'hyperviseur Windows (Hyper-V) est actif sur l'hôte, VirtualBox ne peut pas utiliser VT-x directement et passe par l'API Hyper-V (mode NEM). Le firmware UEFI de la VM se fige ensuite au chargement de `PciHostBridgeDxe.efi`, aux deux démarrages, avant même d'atteindre l'ISO.
 - Cause retenue : conflit entre VirtualBox (VM en UEFI, exigé par Windows 11) et Hyper-V actif sur l'hôte.
 
+- Résolution (PowerShell Windows en administrateur, sur l'hôte) : `bcdedit /set hypervisorlaunchtype off`, puis redémarrage de l'hôte. VirtualBox utilise alors VT-x directement.
+- Résultat : au démarrage suivant, PC01 démarre sur l'ISO et l'installation de Windows 11 se lance (capture 018). Cause confirmée.
+- Retour arrière possible : `bcdedit /set hypervisorlaunchtype auto` puis redémarrage (nécessaire pour WSL2 ou Docker Desktop).
+
+### PC01 opérationnel
+- Installation de Windows 11 Entreprise terminée en une dizaine de minutes, session du compte local `admin` ouverte (capture 019).
+
+- Réseau de PC01 configuré VM éteinte : Adapter 1 en NAT (capture 020), Adapter 2 en réseau privé hôte sur VirtualBox Host-Only Ethernet Adapter (capture 021).
+
+## Partie 1 : préparation de l'environnement
+
+### Adressage (question 1)
+- Commande `ipconfig` sur les deux machines (captures 022 et 023).
+- PC01 : 192.168.56.102/24 sur le réseau privé hôte (attribuée par le DHCP de VirtualBox), 10.0.2.15 sur le NAT.
+- Hôte (poste d'administration) : 192.168.56.1/24 sur la carte VirtualBox Host-Only.
+- Les deux machines sont dans le même réseau 192.168.56.0/24.
+- Point d'attention : l'adresse de PC01 vient du DHCP, elle pourrait changer. À fixer en statique si elle bouge.
+
+### Connectivité (question 1)
+- Premier test depuis l'hôte : `Test-Connection -ComputerName 192.168.56.102 -Count 2` en échec, PingException (capture 025).
+- Diagnostic dans PC01 : `Get-NetConnectionProfile` montre « Ethernet 2 » en catégorie Public, le profil le plus restrictif du pare-feu Windows (capture 026). Les demandes d'écho ICMP entrantes y sont bloquées.
+- Correction dans PC01 (terminal administrateur) :
+  - `Set-NetConnectionProfile -InterfaceAlias "Ethernet 2" -NetworkCategory Private`
+  - `Enable-NetFirewallRule -Name FPS-ICMP4-ERQ-In`
+- Second test réussi, 2 réponses en moins de 1 ms (capture 027). Nom du poste d'administration : DKLS777.
+
+### computers.txt et script de disponibilité (questions 2 et 3)
+- `config/computers.txt` : PC01 (192.168.56.102) et PC03 (192.168.56.150), poste fictif sans machine derrière, pour tester le cas inaccessible.
+- `scripts/01-Test-Parc.ps1` : lit l'inventaire, ignore les lignes vides, les commentaires et les lignes mal formées, teste chaque poste avec `Test-Connection -Count 1 -Quiet`, produit un objet par poste (Poste, AdresseIP, Etat).
+- Choix : l'hôte n'est pas listé comme poste supervisé pour ne pas ouvrir WinRM sur une machine personnelle connectée à un Wi-Fi partagé.
+
 ### Reste à faire
 - Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle.
-- Créer la VM PC01 et installer Windows.
-- Partie 1 : connectivité, computers.txt, activation de WinRM, Enter-PSSession, Invoke-Command.
+- Partie 1 : activation de WinRM, Test-WSMan, Enter-PSSession, Invoke-Command, réponses aux questions.
