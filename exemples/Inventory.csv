@@ -1,0 +1,3 @@
+﻿"Poste";"AdresseIP";"Etat";"Modele";"VersionBios";"Windows";"VersionWindows";"Architecture";"DernierDemarrage";"RamGo";"DisqueLibreGo";"DerniereMaj";"NbMaj";"WindowsUpdate";"Erreur"
+"PC01";"192.168.56.102";"Accessible";"VirtualBox";"VirtualBox";"Microsoft Version d’évaluation de Windows 11 Entreprise";"10.0.26200";"64 bits";"10/10/2026 00:53";"4";"24";"15/09/2025";"4";"Stopped";""
+"PC03";"192.168.56.150";"Inaccessible";"-";"-";"-";"-";"-";"-";"-";"-";"-";"-";"-";"Aucune reponse au ping"

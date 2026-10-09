@@ -99,6 +99,53 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
   - `Set-Item WSMan:\localhost\Client\TrustedHosts -Value "192.168.56.102" -Force`
 - `Enter-PSSession -ComputerName 192.168.56.102 -Credential PC01\admin` : saisie du mot de passe (capture 032), puis invite `[192.168.56.102]: PS C:\Users\admin\Documents>`. La session distante fonctionne.
 
+- Commandes exécutées dans la session (capture 033) : `hostname` renvoie PC01, `whoami` renvoie pc01\admin, `Get-Service wuauserv` est Running, `Get-HotFix` liste 4 correctifs installés le 15/09/2025 (KB5066613, KB5054156, KB5065426, KB5064531). Sortie par `Exit-PSSession`.
+- `Test-WSMan -ComputerName 192.168.56.102` depuis l'hôte : réponse de PC01, pile WSMan 3.0 (capture 034).
+
+### Exécution non interactive (question 6)
+- `$cred = Get-Credential PC01\admin` : les identifiants sont gardés en mémoire dans un objet PSCredential, le mot de passe n'apparaît jamais en clair dans une commande.
+- `Invoke-Command -ComputerName 192.168.56.102 -Credential $cred -ScriptBlock { hostname; (Get-HotFix).Count }` renvoie PC01 et 4 (capture 035).
+- Partie 1 terminée côté manipulation. Réponses aux 7 questions rédigées dans `rapport/reponses-questions.md`.
+
+### À savoir pour les prochaines séances
+- Après un redémarrage de l'hôte, relancer `Start-Service WinRM` si l'accès à WSMan: échoue. La valeur TrustedHosts est conservée.
+- `$cred` disparaît à la fermeture de PowerShell, il faut refaire `Get-Credential`.
+
+- Instantané VirtualBox `WinRM-OK` pris sur PC01 (capture 037) : point de retour si une restriction de la partie 8 casse l'accès distant.
+
+## Partie 2 : inventaire du parc
+
+### Scripts
+- `scripts/Commun.ps1` : fonction `Get-Inventaire`, qui lit computers.txt et renvoie un objet par poste. Chargée par les autres scripts pour ne pas dupliquer la lecture du fichier.
+- `scripts/02-Inventaire-Parc.ps1` :
+  - identifiants passés par `-Credential` ou demandés par `Get-Credential`, jamais écrits dans le script ;
+  - étape 1, ping (`Test-Connection -Quiet`) ; étape 2, collecte par `Invoke-Command` dans un `try/catch` avec `-ErrorAction Stop` pour que le script continue et enregistre l'erreur ;
+  - collecte par `Get-CimInstance` (Win32_ComputerSystem, Win32_OperatingSystem, Win32_BIOS, Win32_LogicalDisk), `Get-HotFix` et `Get-Service wuauserv` ;
+  - une fonction `New-LigneInventaire` garantit les mêmes colonnes pour toutes les lignes, y compris les postes inaccessibles ;
+  - export dans `output/Inventory.csv`, séparateur point-virgule.
+- Choix : un poste qui répond au ping mais dont la commande distante échoue est classé Inaccessible, avec la cause dans la colonne Erreur.
+- Limite connue : un poste dont le pare-feu bloque le ping mais laisse passer WinRM serait classé Inaccessible.
+
+### Difficulté : WinRM bloqué quelques heures après la partie 1
+- Symptôme : première exécution de `02-Inventaire-Parc.ps1`, PC01 répond au ping mais la commande distante échoue (« vérifiez que l'exception de pare-feu pour le service Gestion à distance de Windows est activée »). Le script continue et enregistre l'erreur dans Inventory.csv (captures 038 et 039), ce qui valide la gestion d'erreur demandée par le sujet.
+- Diagnostic dans PC01 (capture 040) :
+  - `Get-NetConnectionProfile` : les deux interfaces sont repassées en profil Public. « Ethernet 2 » est un réseau non identifié (pas de passerelle), le passage en Privé fait en partie 1 n'a pas tenu.
+  - `Get-Service WinRM` : Running, le service n'est pas en cause.
+  - `Get-NetFirewallRule -Name "WINRM-HTTP-In-TCP*"` : la règle `WINRM-HTTP-In-TCP-NoScope` (Domain, Private) est activée, la règle `WINRM-HTTP-In-TCP` (Public) est désactivée. `Enable-PSRemoting` n'avait ouvert WinRM que pour Domain et Private.
+- Correction dans PC01 (capture 041) :
+  - `Set-NetFirewallRule -Name "WINRM-HTTP-In-TCP" -RemoteAddress 192.168.56.1`
+  - `Enable-NetFirewallRule -Name "WINRM-HTTP-In-TCP"`
+- Choix : plutôt que de repasser le réseau en Privé (réglage instable ici), on autorise WinRM sur le profil Public uniquement depuis l'adresse du poste d'administration. La correction ne dépend plus du profil réseau et applique déjà le filtrage par adresse source demandé en partie 8.
+- Erreur de parcours : j'avais d'abord supposé une règle nommée `WINRM-HTTP-In-TCP-PUBLIC`. La liste réelle des règles a donné le bon nom.
+
+### Résultat de la partie 2
+- `Test-WSMan` de nouveau réussi depuis l'hôte, puis `02-Inventaire-Parc.ps1 -Credential $cred` (capture 042) : PC01 Accessible, PC03 Inaccessible.
+- Inventory.csv (capture 043), PC01 : modèle VirtualBox, BIOS VirtualBox, Windows 11 Entreprise évaluation 10.0.26200, 64 bits, 4 Go de RAM, 25,1 Go libres sur le disque système, 4 mises à jour, dernière le 15/09/2025, Windows Update Running.
+- Vérification du dernier démarrage (capture 044) : dans PC01, le fuseau est correct (Romance Standard Time, Paris), l'horloge aussi, et `(Get-CimInstance Win32_OperatingSystem).LastBootUpTime` renvoie bien 09/10/2026 18:37:31. Le script restitue donc fidèlement la valeur de Windows.
+- Explication probable de l'écart avec l'heure réelle (VM arrêtée puis relancée vers 19h50) : le démarrage rapide de Windows. Un arrêt suivi d'un démarrage met le noyau en hibernation au lieu de le recharger, donc LastBootUpTime garde la date du dernier démarrage complet, ici pendant l'installation, avant le réglage du fuseau horaire.
+- Intérêt pour le Patch Management : avec le démarrage rapide, « éteindre puis rallumer » n'est pas un redémarrage. Un poste peut garder longtemps des correctifs en attente de redémarrage. La date de dernier démarrage de l'inventaire sert justement à repérer ces postes.
+- Les paramètres régionaux de PC01 sont en anglais (dates au format américain). Le script impose son propre format `dd/MM/yyyy HH:mm`, donc l'inventaire reste homogène quel que soit le poste.
+
 ### Reste à faire
 - Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle.
-- Partie 1 : activation de WinRM, Test-WSMan, Enter-PSSession, Invoke-Command, réponses aux questions.
+- Partie 3 : inventaire des correctifs (PatchesInventory.csv).
