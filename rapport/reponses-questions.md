@@ -47,3 +47,17 @@ Les deux résultats sont indépendants : une machine peut répondre au ping avec
 - Surface d'attaque étendue si le port 5985 est joignable depuis tous les réseaux et non depuis le seul poste d'administration.
 
 Mesures traitées en partie 8 : filtrage du pare-feu par adresse source, compte dédié à moindre privilège, HTTPS ou Kerberos, JEA, journalisation.
+
+## Partie 4 : contrôle de conformité
+
+### Pourquoi la politique de conformité doit-elle être régulièrement mise à jour ?
+
+- Microsoft publie de nouveaux correctifs de sécurité chaque mois (Patch Tuesday), plus des correctifs hors cycle pour les failles exploitées activement. Une liste figée devient vite obsolète : un poste peut rester « conforme » à une politique ancienne tout en étant vulnérable aux failles publiées depuis.
+- Les correctifs sont cumulatifs et se remplacent. Une KB exigée peut être remplacée par une plus récente : un poste à jour n'a alors plus l'ancienne KB et apparaîtrait à tort non conforme.
+- Les KB dépendent de la version de Windows. Quand le parc évolue (nouvelle version, nouveaux postes), la liste doit suivre, sinon elle exige des correctifs qui ne s'appliquent pas à certaines machines.
+- Certaines versions arrivent en fin de support et ne reçoivent plus de correctifs : la politique doit alors exiger une montée de version plutôt qu'une KB.
+- La priorité dépend de la menace du moment : une faille activement exploitée justifie d'ajouter sa KB en urgence.
+
+Dans le lab : PC01 est installé depuis une image de septembre 2025 et n'a reçu aucun correctif depuis, alors que le poste d'administration en a reçu jusqu'au 29/09/2026. Avec une politique datée de 2025, PC01 serait déclaré conforme malgré un an de retard.
+
+Limite de notre solution : une simple liste de numéros de KB ne gère ni le remplacement d'une KB par une autre, ni la version de Windows concernée. Un outil réel (WSUS, Intune, Windows Update for Business) s'appuie sur le catalogue Microsoft pour ça.

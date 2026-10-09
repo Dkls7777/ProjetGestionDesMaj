@@ -1,0 +1,5 @@
+# Politique minimale de mise a jour : une KB obligatoire par ligne.
+# Les lignes vides et celles qui commencent par # sont ignorees.
+KB5065426
+KB5054156
+KB5124010

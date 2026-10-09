@@ -1,0 +1,3 @@
+﻿"Poste";"AdresseIP";"KBRequises";"KBManquantes";"ListeManquantes";"Etat";"DateControle";"Erreur"
+"PC01";"192.168.56.102";"3";"1";"KB5124010";"NON CONFORME";"10/10/2026 01:17:21";""
+"PC03";"192.168.56.150";"3";"-";"";"INACCESSIBLE";"10/10/2026 01:17:21";"Aucune reponse au ping"

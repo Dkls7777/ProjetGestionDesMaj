@@ -166,6 +166,41 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 - Limite : `InstalledOn` ne donne que le jour, pas l'heure. Quand plusieurs correctifs sont installés le même jour (cas de PC01), le « dernier » est départagé par le numéro de KB le plus élevé, ce qui est un choix arbitraire mais stable d'une exécution à l'autre.
 - Limite : `Get-HotFix` ne liste que les correctifs enregistrés dans Win32_QuickFixEngineering. Certaines mises à jour (pilotes, définitions antivirus, applications du Store) n'y figurent pas.
 
+### Résultat de la partie 3
+- En local sur DKLS777 (capture 048) : 4 correctifs, KB5124010 (29/09/2026), KB5124009 (24/09/2026), KB5126052 (16/09/2026), KB5054156 (23/12/2025), tous installés par AUTORITE NT\Système, c'est-à-dire par Windows Update lui-même.
+- Script exécuté sans erreur du premier coup (capture 049) : PC03 ignoré avec un avertissement, 4 correctifs pour PC01 (KB5066613, KB5065426 Security Update, KB5064531, KB5054156), tous du 15/09/2025, compte d'installation non renseigné.
+- Synthèse : PC01, 4 correctifs, dernier le 15/09/2025, KB5066613. PC03 Inaccessible.
+- PatchesInventory.csv conforme à l'attendu (capture 050). Exemple versionné dans `exemples/`.
+- Constat utile pour la partie 4 : les correctifs de PC01 datent de l'image d'installation (septembre 2025). Le poste a plus d'un an de retard sur l'hôte, qui a reçu des correctifs jusqu'au 29/09/2026. Un seul correctif est commun aux deux machines : KB5054156.
+
+## Partie 4 : contrôle de conformité
+
+### Fichiers
+- `config/required-patches.txt` : KB5065426 et KB5054156 (présentes sur PC01), KB5124010 (présente sur l'hôte, absente de PC01).
+  - Réserve : ces KB sont choisies parmi celles observées dans le lab pour obtenir un cas réaliste. Leur contenu exact n'a pas été vérifié dans le catalogue Microsoft, et KB5124010 pourrait ne pas s'appliquer à la version de Windows de PC01. Une vraie politique se construit à partir des bulletins de sécurité Microsoft, par version de Windows.
+- `scripts/Commun.ps1` : ajout de `Get-CorrectifsRequis` (ignore lignes vides et commentaires, met en majuscules, rejette ce qui ne ressemble pas à KB suivi de chiffres).
+- `scripts/04-Controle-Conformite.ps1` :
+  - récupère les KB installées par `Invoke-Command { (Get-HotFix).HotFixID }` ;
+  - KB manquantes = KB requises absentes des KB installées (`-notcontains`) ;
+  - états CONFORME (aucune manquante), NON CONFORME, INACCESSIBLE ;
+  - date et heure du contrôle, détail des KB manquantes, export `output/ComplianceReport.csv` ;
+  - taux de conformité = postes conformes / postes contrôlés, les postes inaccessibles étant exclus du calcul.
+- Réponse à la question 7 rédigée dans `rapport/reponses-questions.md`.
+
+### Difficulté : fonction introuvable au premier lancement
+- Symptôme : `Get-CorrectifsRequis : Le terme n'est pas reconnu`, puis « Aucun correctif requis ».
+- Cause : le fichier `Commun.ps1` présent sur le poste était l'ancienne version, sans la nouvelle fonction (fichier non synchronisé avant le test). Le script chargeait donc une bibliothèque incomplète.
+- Résolution : mise à jour de `Commun.ps1`, vérification par comparaison des tailles de fichiers, puis relance.
+- Leçon : quand un script dépend d'un fichier commun, toujours vérifier que les deux sont à la même version avant de conclure à un bug.
+
+### Résultat de la partie 4, cas non conforme
+- Contrôle du 10/10/2026 01:11:37 (capture 051) : 3 KB requises, PC01 NON CONFORME avec 1 KB manquante (KB5124010), PC03 INACCESSIBLE.
+- Taux de conformité : 0 %, soit 0 poste conforme sur 1 contrôlé, PC03 étant exclu du calcul.
+
+### Résultat de la partie 4, cas conforme
+- KB5124010 mise en commentaire dans required-patches.txt (capture 054), puis contrôle du 10/10/2026 01:15:29 (capture 055) : 2 KB requises, PC01 CONFORME, taux de 100 % (1 poste conforme sur 1 contrôlé).
+- Les deux tests montrent que l'état d'un même poste dépend entièrement de la politique : c'est l'illustration directe de la question 7.
+
 ### Reste à faire
 - Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle.
-- Partie 3 : inventaire des correctifs (PatchesInventory.csv).
+- Partie 4 : contrôle de conformité (required-patches.txt, ComplianceReport.csv).
