@@ -7,3 +7,4 @@
 | 003 | 003-virtualbox-vm-existantes-aucune-windows.png | Préparation | Gestionnaire VirtualBox, VM existantes (aucune sous Windows) | État initial de VirtualBox avant création du poste PC01 |
 | 004 | 004-virtualbox-version-7.2.8.png | Préparation | Fenêtre À propos : VirtualBox 7.2.8 r173730 | Version de l'hyperviseur utilisé |
 | 005 | 005-github-menu-new-repository.png | Préparation | Menu « + » de GitHub avant création du dépôt | Hors rapport (capture de navigation) |
+| 006 | 006-github-creation-depot-prive.png | Livrables | Formulaire de création du dépôt ProjetGestionDesMaj, propriétaire Dkls7777, visibilité Private | Création du dépôt GitHub privé du projet |
