@@ -78,3 +78,4 @@
 | 074 | 074-pc01-windows-update-suspendre.png | Difficulté | PC01 : Paramètres > Windows Update, option « Suspendre les mises à jour » | Suspension de Windows Update sur PC01 pour stabiliser l'état du lab |
 | 075 | 075-hote-disque-c-31go-libres.png | Difficulté | Explorateur : disque C: revenu à 31,3 Go libres sur 420 Go après nettoyage | Espace disque de l'hôte après résolution de la saturation |
 | 076 | 076-pc01-apres-fusion-instantane-32go.png | Difficulté | Après suppression de l'instantané WinRM-OK : un seul disque PC01.vdi de 32,26 Go, 48,8 Go libres sur C: | Fusion de l'instantané : 48 Go ramenés à 32 Go, espace libre restauré |
+| 077 | 077-virtualbox-pc01-instantane-avant-partie-8.png | Partie 8 | Instantané Avant-partie-8 de PC01, pris VM éteinte le 10/10/2026 à 02:55 | Point de retour avant les opérations de sécurisation |

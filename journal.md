@@ -285,7 +285,8 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 - Conséquence : VirtualBox a mis PC01 en pause automatiquement (capture 073), ce qui protège le disque virtuel de la corruption.
 - Résolution immédiate : retrait de l'ISO du lecteur virtuel de PC01 (il verrouillait le fichier), suppression de l'ISO (6 Go) et d'autres fichiers, 9,8 Go libres, reprise de la VM, suspension de Windows Update dans PC01 (capture 074), puis arrêt de la VM.
 - Après nettoyage complémentaire : 31,3 Go libres sur C: (capture 075). Travail sauvegardé par le commit 2a2a6ee.
-- Reste à faire pour récupérer l'espace : supprimer l'instantané WinRM-OK pour fusionner les deux disques, ce qui demande d'abord environ 20 Go libres, puis reprendre un instantané VM éteinte.
+- Suppression de l'instantané WinRM-OK, VM éteinte : VirtualBox fusionne le disque différentiel dans le disque de base. Résultat (capture 076) : un seul fichier `PC01.vdi` de 32,26 Go au lieu de 48 Go répartis sur trois fichiers, et 48,8 Go libres sur C:.
+- Bilan chiffré : 0 Go libre au pire, 48,8 Go après résolution. PC01 occupe 32 Go, contre 18 Go juste après son installation : la différence correspond aux mises à jour Windows téléchargées en quelques heures.
 - Leçons :
   - surveiller l'espace disque de l'hôte quand une VM a un instantané actif ;
   - prendre les instantanés VM éteinte (pas de fichier de mémoire) ;
