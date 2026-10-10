@@ -363,9 +363,52 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 - Transcription lue dans `C:\ProgramData\JEA\PatchAudit\Transcripts` (capture 094) : heure de début, utilisateur connecté `PC01\svc-patch`, identité d'exécution `WinRM Virtual Users\WinRM VA_6_PC01_svc-patch`, nom de la configuration, commande invoquée et résultat, heure de fin.
 - Le compte virtuel est créé pour la durée de la session et porte le nom de l'appelant : on garde le lien entre l'action et la personne, bien que la commande s'exécute avec d'autres droits.
 
+### Point 5 : règles de pare-feu WinRM
+- État avant (capture 095) : la règle `WINRM-HTTP-In-TCP` (profil Public) était déjà limitée à 192.168.56.1 depuis la partie 2, mais `WINRM-HTTP-In-TCP-NoScope` (profils Domain et Private) acceptait n'importe quelle adresse (`Any`).
+- Correction : `Set-NetFirewallRule -Name "WINRM-HTTP-In-TCP-NoScope" -RemoteAddress 192.168.56.1`.
+- État après : les deux règles n'acceptent que 192.168.56.1. Quel que soit le profil réseau de la carte, seul le poste d'administration peut joindre le port 5985 de PC01.
+- Limite : le filtrage porte sur une adresse IP, qu'une machine du même réseau peut usurper. Il réduit la surface d'attaque mais ne remplace pas l'authentification.
+
+### Point 6 : mode d'authentification
+- `$PSSenderInfo.UserInfo.Identity.AuthenticationType` dans la session distante : NTLM (capture 096).
+- Modes acceptés par le service WinRM de PC01 (`WSMan:\localhost\Service\Auth`) : Kerberos et Negotiate activés, Basic, Certificate et CredSSP désactivés.
+- `AllowUnencrypted` vaut false : bien que le transport soit HTTP (port 5985), le contenu des échanges est chiffré au niveau des messages par le mécanisme d'authentification négocié.
+- Pourquoi NTLM ici : la connexion se fait par adresse IP entre deux machines hors domaine. Kerberos exige un domaine Active Directory et un nom de service. Negotiate se rabat alors sur NTLM.
+
+### Point 4 : droits sur les fichiers produits
+- Dossier `output` de l'hôte (capture 097). `icacls .\output` avant : trois entités seulement, AUTORITE NT\Système, BUILTIN\Administrateurs et DKLS777\dossa, toutes en contrôle total, avec la marque (I) : ces droits sont hérités du profil utilisateur `C:\Users\dossa`. Aucun autre utilisateur n'a accès.
+- Les fichiers étaient donc déjà protégés, mais seulement parce que le dépôt se trouve dans un profil utilisateur. Déplacé ailleurs, le dossier hériterait d'autres droits.
+- Durcissement : `icacls .\output /inheritance:r /grant:r "<compte>:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F"`. L'héritage est coupé et les trois mêmes entités reçoivent des droits explicites, qui suivront le dossier où qu'il soit.
+
+- Transcriptions JEA sur PC01 (capture 098). Avant : en plus de Système et Administrateurs, le groupe BUILTIN\Utilisateurs avait la lecture (RX) et le droit de créer des fichiers, hérités de `C:\ProgramData`. N'importe quel utilisateur du poste pouvait donc lire le résultat des audits. Après `icacls ... /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F"` : Système et Administrateurs seulement.
+- Test de non-régression (capture 099) : `Get-PatchAudit` fonctionne toujours pour `svc-patch`.
+- Détail : dans la sortie d'`icacls` reçue à distance, les accents sont mal rendus (« SystŠme »). C'est un écart d'encodage entre la console de PC01 et celle de l'hôte, sans effet sur les droits.
+
+### Point 8 : conservation des rapports et journaux, mise en œuvre
+- Le sujet demande de proposer une stratégie. Décision : en mettre en œuvre la partie réalisable sans infrastructure supplémentaire.
+- `scripts/PatchManager.ps1` :
+  - à chaque audit, copie de SecurityReport.csv et SecurityReport.html dans `output/archives/<aaaammjj-hhmmss>/`, passée en lecture seule ;
+  - empreinte SHA-256 de chaque copie (`Get-FileHash`), enregistrée dans `output/archives/empreintes.csv` et dans le journal ;
+  - empreinte du rapport ajoutée au corps du mail de notification ;
+  - rotation du journal par `Invoke-RotationJournal` (dans `Commun.ps1`) quand il dépasse `-TailleMaxJournalKo` (1024 Ko par défaut) ;
+  - suppression des archives plus anciennes que `-RetentionJours` (365 par défaut), limitée aux dossiers dont le nom a le format de date attendu.
+- `scripts/Test-IntegriteRapports.ps1` : recalcule les empreintes et affiche OK, ALTERE ou ABSENT pour chaque fichier archivé.
+- Limite : empreinte et rapport sont sur le même poste. Un administrateur malveillant pourrait modifier les deux. La parade réelle est la centralisation des journaux, décrite comme proposition dans les réponses.
+
+### Résultat du point 8
+- Audit du 11/10/2026 01:09:19 par JEA (capture 100) : archive créée dans `output\archives\20261011-010936`, et deux lignes « Archive » dans le journal avec les empreintes SHA-256 des rapports CSV et HTML.
+- `Test-IntegriteRapports.ps1` (capture 102) : les 2 fichiers sont OK.
+- Test de falsification (capture 103) : retrait de la lecture seule, ajout d'une fausse ligne « PC99 ... CONFORME » dans le rapport CSV archivé, nouveau contrôle. Le fichier passe à ALTERE avec un avertissement, le rapport HTML reste OK.
+- Non testés dans le lab : la rotation du journal (il fait quelques Ko, le seuil est à 1024 Ko) et la suppression des archives de plus de 365 jours. Le code existe, il n'a pas été déclenché.
+- Partie 8 terminée : les huit points sont traités, dont les points 3, 7 et 8 par une mise en œuvre réelle.
+
+### README
+- `README.md` réécrit : chaîne de traitement, structure du dépôt, environnement de test, utilisation (compte administrateur ou JEA), prérequis, mesures de sécurité, limites connues.
+
 ### Reste à faire
-- Partie 8 : risques de WinRM, utilisateurs autorisés à ouvrir une session distante, compte dédié à moindre privilège, droits NTFS sur les fichiers produits, règles de pare-feu WinRM (déjà limitées à 192.168.56.1), mode d'authentification et Kerberos, JEA, stratégie de conservation des rapports et journaux.
-- Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle.
-- Relire `rapport/reponses-questions.md` et le reformuler.
+- Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle (à lui demander au prochain cours).
+- Relire les scripts jusqu'à pouvoir expliquer chaque bloc, et reformuler `rapport/reponses-questions.md`.
 - Rapport final Word et PDF (page de garde EFREI, sommaire cliquable, légendes sous les captures).
 - Vidéo de démonstration d'environ 15 minutes.
+- Optionnel, s'il reste du temps : second poste réel PC02 par clonage de PC01, pour montrer un poste conforme et un non conforme dans le même rapport.
+- Optionnel : tester la rotation du journal avec un seuil très bas (`-TailleMaxJournalKo 1`).

@@ -5,6 +5,8 @@
 #   - output\SecurityReport.csv   : le rapport detaille, une ligne par poste
 #   - output\SecurityReport.html  : le meme rapport, lisible dans un navigateur
 #   - output\PatchManager.log     : l'historique des executions
+#   - output\archives\<date>\      : une copie datee des rapports, en lecture seule,
+#                                    avec leur empreinte SHA-256 dans empreintes.csv
 # Si au moins un poste est NON CONFORME ou INACCESSIBLE, il envoie un mail a
 # l'administrateur avec le rapport HTML en piece jointe (config\notification.psd1).
 #
@@ -22,6 +24,10 @@ param(
     # Nom d'un point de connexion JEA (ex : PatchAudit). S'il est indique, le script
     # s'y connecte et n'y appelle que la fonction Get-PatchAudit (voir scripts\jea).
     [string]$ConfigurationName,
+    # Conservation : taille au-dela de laquelle le journal est archive, et duree
+    # de conservation des rapports archives
+    [int]$TailleMaxJournalKo = 1024,
+    [int]$RetentionJours     = 365,
     # Pour lancer un audit sans envoyer de mail
     [switch]$SansNotification
 )
@@ -37,7 +43,15 @@ $log      = Join-Path $OutputDir "PatchManager.log"
 $csvPath  = Join-Path $OutputDir "SecurityReport.csv"
 $htmlPath = Join-Path $OutputDir "SecurityReport.html"
 
+$archives = Join-Path $OutputDir "archives"
+
+# Rotation : un journal trop gros est archive avant de commencer un nouvel audit
+$journalArchive = Invoke-RotationJournal -Path $log -ArchiveDir $archives -TailleMaxKo $TailleMaxJournalKo
+
 Write-Journal -Path $log -Champs "Debut de l'audit"
+if ($journalArchive) {
+    Write-Journal -Path $log -Champs "Rotation du journal", (Split-Path $journalArchive -Leaf)
+}
 
 $requis = @(Get-CorrectifsRequis -Path $RequiredPath)
 if ($requis.Count -eq 0) {
@@ -294,9 +308,47 @@ $($lignesDetail -join "`n")
 $html | Out-File -FilePath $htmlPath -Encoding UTF8
 
 Write-Journal -Path $log -Champs "Rapport genere"
+
+# ---------------------------------------------------------------- archivage et empreintes (partie 8)
+# Chaque audit laisse une copie datee de ses rapports, en lecture seule, et son
+# empreinte SHA-256. Recalculer l'empreinte plus tard revele toute modification.
+$horodatage     = Get-Date -Format "yyyyMMdd-HHmmss"
+$dossierArchive = Join-Path $archives $horodatage
+New-Item -ItemType Directory -Path $dossierArchive -Force | Out-Null
+$registre       = Join-Path $archives "empreintes.csv"
+$empreinteHtml  = ""
+
+foreach ($fichier in @($csvPath, $htmlPath)) {
+    $nomFichier = Split-Path $fichier -Leaf
+    $copie      = Join-Path $dossierArchive $nomFichier
+
+    Copy-Item -Path $fichier -Destination $copie
+    Set-ItemProperty -Path $copie -Name IsReadOnly -Value $true
+    $empreinte = (Get-FileHash -Path $copie -Algorithm SHA256).Hash
+
+    [PSCustomObject]@{
+        DateControle = $dateControle
+        Fichier      = Join-Path $horodatage $nomFichier
+        SHA256       = $empreinte
+    } | Export-Csv -Path $registre -Append -NoTypeInformation -Delimiter ";" -Encoding UTF8
+
+    Write-Journal -Path $log -Champs "Archive", (Join-Path $horodatage $nomFichier), "SHA256=$empreinte"
+    if ($fichier -eq $htmlPath) { $empreinteHtml = $empreinte }
+}
+
+# Retention : suppression des archives plus anciennes que la duree de conservation.
+# Seuls les dossiers dont le nom est une date au format attendu sont concernes.
+$limite = (Get-Date).AddDays(-$RetentionJours)
+Get-ChildItem -Path $archives -Directory |
+    Where-Object { $_.Name -match '^\d{8}-\d{6}$' -and $_.CreationTime -lt $limite } |
+    ForEach-Object {
+        Remove-Item -Path $_.FullName -Recurse -Force
+        Write-Journal -Path $log -Champs "Archive supprimee (retention de $RetentionJours jours depassee)", $_.Name
+    }
 Write-Host "Rapport CSV  : $csvPath"
 Write-Host "Rapport HTML : $htmlPath"
 Write-Host "Journal      : $log"
+Write-Host "Archive      : $dossierArchive"
 
 # ---------------------------------------------------------------- notification (partie 7)
 # Un mail n'est envoye que s'il existe au moins une anomalie.
@@ -342,6 +394,9 @@ else {
     }
     $lignes += ""
     $lignes += "Le rapport complet est joint ${ag} ce message (SecurityReport.html)."
+    # L'empreinte voyage avec le mail : le destinataire peut verifier la piece jointe,
+    # et elle constitue une copie de reference hors du poste d'administration
+    $lignes += "Empreinte SHA-256 du rapport joint : $empreinteHtml"
 
     # Parametres d'envoi regroupes dans une table (splatting)
     $mail = @{

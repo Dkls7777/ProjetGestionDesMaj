@@ -73,3 +73,27 @@ function Write-Journal {
     $ligne = (@($horodatage) + $Champs) -join " ; "
     Add-Content -Path $Path -Value $ligne -Encoding UTF8
 }
+
+function Invoke-RotationJournal {
+    # Si le journal depasse la taille maximale, il est deplace dans le dossier
+    # d'archives sous un nom date, puis passe en lecture seule.
+    # Renvoie le chemin de l'archive creee, ou rien s'il n'y a pas eu de rotation.
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string]$ArchiveDir,
+        [int]$TailleMaxKo = 1024
+    )
+
+    if (-not (Test-Path $Path)) { return }
+    if ((Get-Item $Path).Length -lt ($TailleMaxKo * 1KB)) { return }
+
+    if (-not (Test-Path $ArchiveDir)) { New-Item -ItemType Directory -Path $ArchiveDir | Out-Null }
+    $nom   = "PatchManager-{0}.log" -f (Get-Date -Format "yyyyMMdd-HHmmss")
+    $cible = Join-Path $ArchiveDir $nom
+
+    Move-Item -Path $Path -Destination $cible
+    Set-ItemProperty -Path $cible -Name IsReadOnly -Value $true
+    $cible
+}

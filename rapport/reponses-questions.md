@@ -82,3 +82,95 @@ Limite de notre solution : une simple liste de numéros de KB ne gère ni le rem
 - Plateformes d'astreinte et d'alerte (PagerDuty, Opsgenie) : dédoublonnage, escalade, accusé de réception.
 - Supervision et SIEM : écrire un événement dans le journal Windows ou envoyer en syslog, puis laisser Microsoft Sentinel, Splunk, Elastic ou Zabbix corréler et alerter.
 - Outils de gestion des correctifs intégrés (Microsoft Intune, WSUS, Azure Update Manager) : ils fournissent nativement tableaux de bord de conformité et alertes, sans script maison.
+
+## Partie 8 : sécurisation de la solution
+
+### 1. Principaux risques liés à PowerShell Remoting / WinRM dans l'architecture mise en place
+
+- Exécution de commandes à distance : WinRM est par nature une porte d'administration. Tout compte autorisé, légitime ou volé, exécute du code sur le poste. Avant durcissement, le seul compte utilisable était `admin`, administrateur local (capture 083).
+- Mouvement latéral : le poste d'administration détient des identifiants valables sur tous les postes du parc. S'il est compromis, tout le parc l'est. C'est le point le plus sensible de l'architecture.
+- Authentification NTLM hors domaine (capture 096) : le client ne peut pas vérifier l'identité du serveur, d'où l'obligation de déclarer PC01 dans les TrustedHosts. Une machine qui usurpe l'adresse 192.168.56.102 recevrait la tentative d'authentification. NTLM est aussi exposé au relais et à la réutilisation du condensat du mot de passe (pass-the-hash).
+- LocalAccountTokenFilterPolicy, activé par `Enable-PSRemoting` (capture 029) : les comptes locaux administrateurs gardent tous leurs privilèges à distance. Un mot de passe d'administrateur local réutilisé d'un poste à l'autre donne accès à tous.
+- Transport HTTP (port 5985) : les messages sont chiffrés (`AllowUnencrypted` à false), mais sans certificat rien n'authentifie le serveur au niveau du transport.
+- Exposition réseau : par défaut, la règle de pare-feu des profils Privé et Domaine acceptait toute adresse source (capture 095, avant).
+- Fuite d'information : rapports, journaux et transcriptions décrivent les postes vulnérables et les correctifs manquants.
+- Gestion des secrets : identifiants saisis ou stockés sur le poste d'administration, mot de passe du serveur de messagerie.
+
+Mesures mises en œuvre : filtrage du pare-feu par adresse source (point 5), compte de service sans privilège (point 3), point de connexion JEA limité à une fonction de lecture (point 7), transcription des sessions, droits restreints sur les fichiers (point 4), aucun mot de passe dans les scripts.
+
+### 2. Utilisateurs autorisés à ouvrir une session distante
+
+Voir captures 083 et 086. Sur PC01, le point de connexion par défaut `microsoft.powershell` est ouvert aux membres des groupes Administrateurs et Utilisateurs de gestion à distance. Après durcissement :
+
+| Point de connexion | Qui peut s'y connecter | Ce qu'il permet |
+|---|---|---|
+| microsoft.powershell (par défaut) | `admin` uniquement (groupe Administrateurs). Le groupe Utilisateurs de gestion à distance est vide. | Session PowerShell complète, droits d'administration |
+| PatchAudit (JEA) | `svc-patch` uniquement | Une seule fonction de lecture, `Get-PatchAudit` |
+
+### 3. Limitation des privilèges du compte utilisé
+
+- Compte dédié `svc-patch`, simple utilisateur local, membre d'aucun groupe privilégié (captures 084 et 092).
+- Constat : un compte non administrateur peut se connecter mais se voit refuser les lectures WMI (`Get-CimInstance`, `Get-HotFix`), car WMI réserve l'accès distant aux administrateurs (capture 085).
+- Solution retenue : JEA plutôt qu'un élargissement des droits WMI. Le compte ne peut appeler qu'une fonction, exécutée par un compte virtuel temporaire (captures 087 à 091).
+- Résultat : l'audit complet fonctionne sans aucun compte administrateur (capture 091), et `svc-patch` ne peut plus ouvrir de session PowerShell ordinaire (capture 093).
+
+### 4. Accès aux fichiers produits
+
+- Dossier `output` du poste d'administration : accès limité au compte de l'administrateur, à Système et au groupe Administrateurs. Les droits étaient déjà corrects par héritage du profil utilisateur, ils ont été rendus explicites pour ne plus dépendre de l'emplacement du dossier (capture 097).
+- Transcriptions JEA sur PC01 : accès limité à Système et aux Administrateurs.
+- Le dossier `output` et les fichiers `*.log` sont exclus du dépôt Git par `.gitignore`. Seuls des exemples sont versionnés, dans un dépôt privé.
+
+### 5. Règles de pare-feu associées à WinRM
+
+Voir capture 095. Deux règles entrantes autorisent le port TCP 5985 sur PC01 : `WINRM-HTTP-In-TCP` (profil Public) et `WINRM-HTTP-In-TCP-NoScope` (profils Domaine et Privé). Les deux sont désormais limitées à l'adresse distante 192.168.56.1, celle du poste d'administration. Aucune autre machine ne peut atteindre le service, quel que soit le profil réseau actif.
+
+Limite : une adresse IP peut être usurpée sur un même réseau local. Le filtrage réduit la surface d'attaque, il ne remplace pas l'authentification.
+
+### 6. Mode d'authentification, et cas où Kerberos est préférable
+
+Mode utilisé dans le lab : NTLM, négocié par le mode Negotiate (capture 096). Basic, Certificate et CredSSP sont désactivés côté service.
+
+Kerberos est préférable dès que les machines appartiennent à un domaine Active Directory et que l'on se connecte par nom de machine :
+
+- Authentification mutuelle : le client vérifie l'identité du serveur grâce au ticket délivré par le contrôleur de domaine. Plus besoin de TrustedHosts, et une machine usurpatrice est détectée.
+- Le mot de passe et son condensat ne circulent jamais vers le serveur : le client présente un ticket à durée de vie limitée. Les attaques par relais NTLM et pass-the-hash ne s'appliquent pas de la même façon.
+- Gestion centralisée : comptes, groupes et délégation sont administrés dans l'annuaire, et non poste par poste.
+
+Kerberos n'est pas utilisable dans notre lab : pas de domaine, et connexion par adresse IP. Hors domaine, l'alternative pour authentifier le serveur est WinRM sur HTTPS (port 5986) avec un certificat.
+
+### 7. Just Enough Administration (JEA)
+
+Principe : au lieu de donner à un compte une session PowerShell complète, on publie un point de connexion restreint qui n'expose que les commandes nécessaires à une tâche. JEA repose sur trois éléments :
+
+- un fichier de rôle (`.psrc`) qui liste les commandes, fonctions et paramètres autorisés ;
+- un fichier de configuration de session (`.pssc`) qui associe des utilisateurs à des rôles, fixe le mode de langage (NoLanguage : ni variables ni scripts) et l'identité d'exécution ;
+- un compte virtuel temporaire : les commandes s'exécutent avec les droits nécessaires, sans que l'utilisateur les possède lui-même.
+
+Mise en œuvre dans le projet (`scripts/jea/Install-JeaPatchAudit.ps1`) : point de connexion `PatchAudit`, accessible au seul compte `svc-patch`, exposant une unique fonction `Get-PatchAudit`. Toute autre commande est introuvable dans la session (captures 088 à 090). Chaque session est transcrite, avec l'utilisateur connecté et l'identité d'exécution (capture 094).
+
+Bénéfice : si les identifiants de `svc-patch` sont volés, l'attaquant peut seulement lire la liste des correctifs d'un poste. Il ne peut ni installer, ni modifier, ni rebondir.
+
+Limites : la sécurité repose sur la qualité des fonctions exposées (une fonction acceptant des paramètres mal contrôlés pourrait être détournée, d'où le choix d'une fonction sans paramètre) et le compte virtuel est administrateur local, donc le fichier de rôle doit lui-même être protégé contre toute modification.
+
+### 8. Stratégie de conservation des rapports et des journaux
+
+La stratégie comporte une partie mise en œuvre dans `PatchManager.ps1` et une partie proposée, qui dépend d'une infrastructure absente du lab.
+
+Mis en œuvre dans le projet :
+
+| Risque | Mesure | Preuve |
+|---|---|---|
+| Modification non autorisée | À chaque audit, copie datée des rapports dans `output/archives/<date>/`, passée en lecture seule, et empreinte SHA-256 enregistrée dans `empreintes.csv` et dans le journal. `Test-IntegriteRapports.ps1` recalcule les empreintes et signale tout fichier altéré ou absent. | Captures 100, 102 et 103 |
+| Modification non autorisée | L'empreinte du rapport est aussi écrite dans le mail de notification : une copie de référence existe hors du poste d'administration. | Code de `PatchManager.ps1` |
+| Suppression | Chaque audit laisse sa propre archive, l'historique ne dépend plus d'un fichier unique écrasé à chaque exécution. | Capture 100 |
+| Croissance sans limite | Rotation du journal au-delà d'une taille maximale (`-TailleMaxJournalKo`), et suppression des archives plus anciennes que la durée de conservation (`-RetentionJours`, 365 jours par défaut). | Code de `PatchManager.ps1`, non déclenché dans le lab |
+| Exposition d'informations | Droits NTFS limités à l'administrateur, Système et Administrateurs sur `output` (les archives en héritent), transcriptions JEA limitées à Système et Administrateurs, dossier `output` exclu du dépôt Git, dépôt privé, aucun secret dans les journaux. | Captures 097 et 098 |
+
+Proposé, non mis en œuvre :
+
+- Centralisation des journaux vers un serveur dédié ou un SIEM, qui en reçoit une copie que le poste d'administration ne peut plus modifier. C'est la vraie protection contre un attaquant devenu administrateur du poste : dans notre solution, il pourrait réécrire à la fois un rapport et son empreinte locale.
+- Sauvegarde sur un support distinct, selon la règle 3-2-1 (trois copies, deux supports, une hors site), et stockage en écriture unique (WORM) pour les journaux.
+- Chiffrement du disque du poste d'administration (BitLocker) et chiffrement du transport pour tout envoi de rapport.
+- Signature numérique des rapports par un certificat, plus forte qu'une simple empreinte.
+
+Limite assumée : l'attribut lecture seule et l'empreinte locale détectent une modification accidentelle ou maladroite, pas un attaquant disposant des droits d'administration sur le poste.

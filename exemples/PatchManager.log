@@ -30,3 +30,23 @@
 10/10/2026 02:01:59 ; Rapport genere
 10/10/2026 02:02:01 ; ERREUR ; Notification non envoyee ; Impossible de se connecter au serveur distant
 10/10/2026 02:02:01 ; Fin de l'audit
+11/10/2026 00:15:41 ; Debut de l'audit
+11/10/2026 00:16:27 ; PC01 ; Accessible
+11/10/2026 00:16:27 ; PC01 ; Non conforme ; KB5124010
+11/10/2026 00:16:31 ; PC03 ; Inaccessible ; Aucune reponse au ping
+11/10/2026 00:16:31 ; Rapport genere
+11/10/2026 00:16:31 ; Fin de l'audit
+11/10/2026 00:40:03 ; Debut de l'audit
+11/10/2026 00:40:13 ; PC01 ; Accessible
+11/10/2026 00:40:13 ; PC01 ; Non conforme ; KB5124010
+11/10/2026 00:40:17 ; PC03 ; Inaccessible ; Aucune reponse au ping
+11/10/2026 00:40:17 ; Rapport genere
+11/10/2026 00:40:17 ; Fin de l'audit
+11/10/2026 01:09:19 ; Debut de l'audit
+11/10/2026 01:09:32 ; PC01 ; Accessible
+11/10/2026 01:09:32 ; PC01 ; Non conforme ; KB5124010
+11/10/2026 01:09:36 ; PC03 ; Inaccessible ; Aucune reponse au ping
+11/10/2026 01:09:36 ; Rapport genere
+11/10/2026 01:09:36 ; Archive ; 20261011-010936\SecurityReport.csv ; SHA256=2D6D61D5520FE6484EF8FCC5ACCE4580762026A88D523D7E8A987FB4763FAC04
+11/10/2026 01:09:36 ; Archive ; 20261011-010936\SecurityReport.html ; SHA256=144190517C5D47A48953E63289030DD092E001D3B3FFDFAB1B2B2B81E6C977C9
+11/10/2026 01:09:36 ; Fin de l'audit
