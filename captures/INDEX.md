@@ -76,3 +76,5 @@
 | 072 | 072-patchmanager-log-trois-cas-notification.png | Partie 7 | PatchManager.log : notification envoyée (01:48:18), aucune anomalie (01:58:36), erreur d'envoi (02:02:01) | Journal : trace des trois cas de notification |
 | 073 | 073-virtualbox-pc01-en-pause-disque-plein.png | Difficulté | Gestionnaire VirtualBox : PC01 « En pause », mise en pause automatique car le disque de l'hôte est plein | VM suspendue automatiquement par VirtualBox à la saturation du disque de l'hôte |
 | 074 | 074-pc01-windows-update-suspendre.png | Difficulté | PC01 : Paramètres > Windows Update, option « Suspendre les mises à jour » | Suspension de Windows Update sur PC01 pour stabiliser l'état du lab |
+| 075 | 075-hote-disque-c-31go-libres.png | Difficulté | Explorateur : disque C: revenu à 31,3 Go libres sur 420 Go après nettoyage | Espace disque de l'hôte après résolution de la saturation |
+| 076 | 076-pc01-apres-fusion-instantane-32go.png | Difficulté | Après suppression de l'instantané WinRM-OK : un seul disque PC01.vdi de 32,26 Go, 48,8 Go libres sur C: | Fusion de l'instantané : 48 Go ramenés à 32 Go, espace libre restauré |

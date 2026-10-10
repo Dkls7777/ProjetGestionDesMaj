@@ -284,6 +284,7 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 - Explication : PC01, installé depuis une image de septembre 2025, télécharge et installe un an de mises à jour par Windows Update. Avec un instantané actif, VirtualBox conserve l'ancien état du disque en plus du nouveau, donc chaque bloc modifié consomme de l'espace supplémentaire.
 - Conséquence : VirtualBox a mis PC01 en pause automatiquement (capture 073), ce qui protège le disque virtuel de la corruption.
 - Résolution immédiate : retrait de l'ISO du lecteur virtuel de PC01 (il verrouillait le fichier), suppression de l'ISO (6 Go) et d'autres fichiers, 9,8 Go libres, reprise de la VM, suspension de Windows Update dans PC01 (capture 074), puis arrêt de la VM.
+- Après nettoyage complémentaire : 31,3 Go libres sur C: (capture 075). Travail sauvegardé par le commit 2a2a6ee.
 - Reste à faire pour récupérer l'espace : supprimer l'instantané WinRM-OK pour fusionner les deux disques, ce qui demande d'abord environ 20 Go libres, puis reprendre un instantané VM éteinte.
 - Leçons :
   - surveiller l'espace disque de l'hôte quand une VM a un instantané actif ;
