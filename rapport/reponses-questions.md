@@ -61,3 +61,24 @@ Mesures traitées en partie 8 : filtrage du pare-feu par adresse source, compte 
 Dans le lab : PC01 est installé depuis une image de septembre 2025 et n'a reçu aucun correctif depuis, alors que le poste d'administration en a reçu jusqu'au 29/09/2026. Avec une politique datée de 2025, PC01 serait déclaré conforme malgré un an de retard.
 
 Limite de notre solution : une simple liste de numéros de KB ne gère ni le remplacement d'une KB par une autre, ni la version de Windows concernée. Un outil réel (WSUS, Intune, Windows Update for Business) s'appuie sur le catalogue Microsoft pour ça.
+
+## Partie 7 : notification
+
+### Quels sont les inconvénients de cette solution ?
+
+- Dépendance à un serveur SMTP : s'il est en panne ou injoignable, l'alerte est perdue. Le script le journalise, mais personne n'est prévenu.
+- Sécurité du transport : un envoi SMTP simple peut circuler en clair et sans authentification. Or le rapport joint liste les postes vulnérables et les correctifs qui leur manquent, une information précieuse pour un attaquant.
+- Gestion d'un secret : si le serveur exige une authentification, il faut stocker des identifiants sur le poste d'administration. On les protège ici par un fichier chiffré (DPAPI), mais le risque existe.
+- `Send-MailMessage` est une commande obsolète : elle ne gère pas l'authentification moderne (OAuth 2.0) exigée par les messageries actuelles comme Microsoft 365.
+- Un mail est une alerte passive : pas d'accusé de prise en charge, pas d'escalade si personne ne réagit, pas de suivi de la résolution. Il peut finir dans les indésirables ou noyé dans la boîte de réception.
+- Fatigue d'alerte : le script envoie un mail à chaque exécution tant que l'anomalie persiste, sans dédoublonnage. Lancé toutes les heures, il produirait 24 mails par jour pour le même poste.
+- La notification n'existe que si le script s'exécute : si la tâche planifiée ne tourne plus, plus aucune alerte, et aucun mécanisme ne le signale.
+
+### Quelles alternatives modernes à un simple envoi SMTP depuis le script ?
+
+- Messagerie par API avec authentification moderne : Microsoft Graph (`Send-MgUserMail`) avec OAuth 2.0 et une identité applicative, au lieu d'un mot de passe.
+- Webhooks vers une messagerie d'équipe : Microsoft Teams ou Slack, un simple appel HTTPS (`Invoke-RestMethod`) qui publie l'alerte dans un canal suivi par l'équipe.
+- Création automatique d'un ticket dans l'outil ITSM (GLPI, ServiceNow, Jira Service Management) par son API : l'anomalie a alors un responsable, un statut et un historique.
+- Plateformes d'astreinte et d'alerte (PagerDuty, Opsgenie) : dédoublonnage, escalade, accusé de réception.
+- Supervision et SIEM : écrire un événement dans le journal Windows ou envoyer en syslog, puis laisser Microsoft Sentinel, Splunk, Elastic ou Zabbix corréler et alerter.
+- Outils de gestion des correctifs intégrés (Microsoft Intune, WSUS, Azure Update Manager) : ils fournissent nativement tableaux de bord de conformité et alertes, sans script maison.

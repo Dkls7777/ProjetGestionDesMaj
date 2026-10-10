@@ -235,6 +235,62 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 - Exemples versionnés dans `exemples/` : SecurityReport.csv, SecurityReport.html, PatchManager.log.
 - Partie 6 terminée.
 
+## Partie 7 : notification
+
+### Fichiers
+- `config/notification.psd1` : serveur SMTP (127.0.0.1, port 2525), expéditeur, destinataire, chemin optionnel d'un fichier d'identifiants. Lu par `Import-PowerShellDataFile`, qui n'exécute aucun code.
+- `scripts/PatchManager.ps1` : ajout du bloc de notification après la génération du rapport.
+  - Déclenchement uniquement s'il existe au moins un poste NON CONFORME ou INACCESSIBLE. Sinon aucune notification, et une ligne « Aucune anomalie » dans le journal.
+  - Message conforme au modèle du sujet : objet `[PATCH MANAGEMENT] Anomalies détectées`, date du contrôle, postes contrôlés, non conformes, inaccessibles, puis le détail par poste avec les KB manquantes.
+  - Pièce jointe : SecurityReport.html.
+  - Envoi par `Send-MailMessage` dans un `try/catch` : « Notification envoyee a ... » ou « ERREUR ; Notification non envoyee » dans le journal.
+  - Paramètre `-SansNotification` pour lancer un audit sans envoyer de mail.
+- Aucun mot de passe dans le script ni dans la configuration. Si le serveur exige une authentification, les identifiants sont lus dans un fichier créé par `Get-Credential | Export-Clixml`, où le mot de passe est chiffré par Windows (DPAPI) : seul le même compte, sur le même poste, peut le relire. `.gitignore` exclut `*.clixml`.
+- Serveur de test : smtp4dev 3.15.0, en local. Il reçoit les mails sans les relayer et les affiche dans une interface web.
+- Réponses aux questions 2 et 3 rédigées dans `rapport/reponses-questions.md`.
+
+### Installation de smtp4dev
+- Téléchargement de `Rnwood.Smtp4dev-win-x64-3.15.0.zip` depuis les publications GitHub du projet, décompression dans `C:\Users\dossa\smtp4dev`, hors du dépôt.
+- Lancement dans une seconde fenêtre PowerShell : `.\Rnwood.Smtp4dev.exe --smtpport=2525 --urls=http://127.0.0.1:5000` (capture 064). SMTP sur le port 2525, interface web sur http://127.0.0.1:5000.
+- Difficulté de sécurité : au premier lancement, Windows a proposé d'autoriser le programme dans le pare-feu et l'autorisation a été accordée. smtp4dev écoute sur toutes les interfaces, donc aussi sur le Wi-Fi partagé, et expose en plus IMAP (143) et POP3 (110), qui permettent de lire les mails reçus, donc le rapport listant les postes vulnérables.
+- Correction (capture 065) : `Get-NetFirewallRule -DisplayName "*smtp4dev*" | Set-NetFirewallRule -Action Block`. Les deux règles créées (profil Public) passent en Block. L'usage local reste possible, le trafic de bouclage n'étant pas filtré par ces règles.
+- Leçon pour la partie 8 : une demande d'autorisation du pare-feu acceptée par réflexe ouvre un service au réseau. Le principe de moindre exposition s'applique aussi aux outils de test.
+
+### Résultat de la partie 7, cas avec anomalies
+- Audit du 10/10/2026 01:48:10 (capture 067) : 2 anomalies, « Notification envoyee a admin@entreprise.local ».
+- Mail reçu dans smtp4dev à 01:48:18 (capture 068) : expéditeur patchmanager@entreprise.local, objet `[PATCH MANAGEMENT] Anomalies détectées` avec les accents corrects, corps conforme au modèle du sujet (date, 2 postes contrôlés, 1 non conforme, 1 inaccessible, détail par poste), pièce jointe SecurityReport.html.
+- Fichiers de test ajoutés dans `config/tests/` pour le cas sans anomalie : un inventaire réduit à PC01 et une politique réduite aux 2 KB qu'il possède. Ils se passent au script par `-InventoryPath` et `-RequiredPath`, sans toucher à la configuration réelle.
+
+### Résultat de la partie 7, cas sans anomalie
+- Audit du 10/10/2026 01:58:30 avec `-InventoryPath` et `-RequiredPath` pointant sur `config/tests/` (capture 069) : 1 poste, CONFORME, taux de 100 %, section intervention « Aucun », et « Aucune anomalie detectee : pas de notification ». Le script se termine sans envoyer de mail.
+
+- Vérification dans smtp4dev (capture 070) : toujours un seul mail après cet audit.
+
+### Résultat de la partie 7, cas d'échec d'envoi
+- smtp4dev arrêté par Ctrl+C, puis audit du 10/10/2026 02:01:50 (capture 071) : avertissement « Notification non envoyee : Impossible de se connecter au serveur distant ». Le rapport est quand même produit et le script se termine normalement.
+- Journal (capture 072), les trois cas à la suite :
+  - 01:48:18, « Notification envoyee a admin@entreprise.local » ;
+  - 01:58:36, « Aucune anomalie ; Pas de notification » ;
+  - 02:02:01, « ERREUR ; Notification non envoyee ; Impossible de se connecter au serveur distant ».
+- Partie 7 terminée.
+
+### Difficulté : disque de l'hôte saturé
+- Premier symptôme : smtp4dev ne redémarre pas, `SQLite Error 10: 'disk I/O error'` sur sa base, puis « SMTP server failed to start ». Supprimer la base n'y change rien.
+- Vraie cause : `Get-PSDrive C` affiche 0 Go libre, alors qu'il y en avait 54,8 l'après-midi.
+- Analyse par `Get-ChildItem "$HOME\VirtualBox VMs\PC01" -Recurse -File | Sort-Object Length -Descending` :
+  - `PC01.vdi`, 18,0 Go : disque figé au moment de l'instantané WinRM-OK ;
+  - disque différentiel `{56ef2235...}.vdi`, 28,1 Go : tout ce qui a changé depuis l'instantané, en 6 heures ;
+  - fichier `.sav`, 2,0 Go : mémoire vive enregistrée avec l'instantané, pris VM allumée.
+- Explication : PC01, installé depuis une image de septembre 2025, télécharge et installe un an de mises à jour par Windows Update. Avec un instantané actif, VirtualBox conserve l'ancien état du disque en plus du nouveau, donc chaque bloc modifié consomme de l'espace supplémentaire.
+- Conséquence : VirtualBox a mis PC01 en pause automatiquement (capture 073), ce qui protège le disque virtuel de la corruption.
+- Résolution immédiate : retrait de l'ISO du lecteur virtuel de PC01 (il verrouillait le fichier), suppression de l'ISO (6 Go) et d'autres fichiers, 9,8 Go libres, reprise de la VM, suspension de Windows Update dans PC01 (capture 074), puis arrêt de la VM.
+- Reste à faire pour récupérer l'espace : supprimer l'instantané WinRM-OK pour fusionner les deux disques, ce qui demande d'abord environ 20 Go libres, puis reprendre un instantané VM éteinte.
+- Leçons :
+  - surveiller l'espace disque de l'hôte quand une VM a un instantané actif ;
+  - prendre les instantanés VM éteinte (pas de fichier de mémoire) ;
+  - suspendre Windows Update sur un poste de lab dont on veut garder l'état stable. Sans cela, PC01 aurait fini par installer la KB manquante et serait devenu conforme entre deux démonstrations.
+  - une erreur applicative peu claire (« disk I/O error ») cachait un problème système : vérifier les ressources de base avant de soupçonner le logiciel.
+
 ### Reste à faire
 - Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle.
-- Partie 7 : notification par mail en cas d'anomalie (serveur SMTP de test à installer).
+- Partie 8 : sécurisation (risques, comptes autorisés, moindre privilège, droits sur les fichiers, pare-feu, authentification, JEA, conservation des journaux).

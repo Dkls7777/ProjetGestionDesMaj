@@ -1,19 +1,25 @@
 # PatchManager.ps1
-# Partie 6 : rapport de securite.
+# Parties 6 et 7 : rapport de securite et notification.
 # Script principal de la solution. Il realise un audit complet du parc en une seule
 # passe (accessibilite, informations systeme, correctifs, conformite), puis produit :
 #   - output\SecurityReport.csv   : le rapport detaille, une ligne par poste
 #   - output\SecurityReport.html  : le meme rapport, lisible dans un navigateur
 #   - output\PatchManager.log     : l'historique des executions
+# Si au moins un poste est NON CONFORME ou INACCESSIBLE, il envoie un mail a
+# l'administrateur avec le rapport HTML en piece jointe (config\notification.psd1).
 #
 # Usage (PowerShell Windows, depuis la racine du depot) :
 #   .\scripts\PatchManager.ps1 -Credential $cred
+#   .\scripts\PatchManager.ps1 -Credential $cred -SansNotification
 
 param(
     [string]$InventoryPath = (Join-Path $PSScriptRoot "..\config\computers.txt"),
     [string]$RequiredPath  = (Join-Path $PSScriptRoot "..\config\required-patches.txt"),
     [string]$OutputDir     = (Join-Path $PSScriptRoot "..\output"),
-    [System.Management.Automation.PSCredential]$Credential
+    [string]$NotificationConfig = (Join-Path $PSScriptRoot "..\config\notification.psd1"),
+    [System.Management.Automation.PSCredential]$Credential,
+    # Pour lancer un audit sans envoyer de mail
+    [switch]$SansNotification
 )
 
 . (Join-Path $PSScriptRoot "Commun.ps1")
@@ -273,5 +279,87 @@ Write-Journal -Path $log -Champs "Rapport genere"
 Write-Host "Rapport CSV  : $csvPath"
 Write-Host "Rapport HTML : $htmlPath"
 Write-Host "Journal      : $log"
+
+# ---------------------------------------------------------------- notification (partie 7)
+# Un mail n'est envoye que s'il existe au moins une anomalie.
+if ($SansNotification) {
+    Write-Host "Notification desactivee (-SansNotification)"
+}
+elseif ($aTraiter.Count -eq 0) {
+    Write-Host "Aucune anomalie detectee : pas de notification"
+    Write-Journal -Path $log -Champs "Aucune anomalie", "Pas de notification"
+}
+elseif (-not (Test-Path $NotificationConfig)) {
+    Write-Warning "Configuration de notification introuvable : $NotificationConfig"
+    Write-Journal -Path $log -Champs "ERREUR", "Notification non envoyee", "Configuration introuvable"
+}
+else {
+    $conf = Import-PowerShellDataFile -Path $NotificationConfig
+
+    # Lettres accentuees construites par code, pour garder ce fichier en ASCII
+    $e  = [char]0xE9   # e accent aigu
+    $eg = [char]0xE8   # e accent grave
+    $o  = [char]0xF4   # o accent circonflexe
+    $ag = [char]0xE0   # a accent grave
+
+    $objet = "[PATCH MANAGEMENT] Anomalies d${e}tect${e}es"
+
+    $lignes = @(
+        "Date du contr${o}le : $dateControle"
+        "Postes contr${o}l${e}s : $($rapport.Count)"
+        "Postes non conformes : $($nonConformes.Count)"
+        "Postes inaccessibles : $($inaccessibles.Count)"
+        ""
+    )
+    foreach ($p in $aTraiter) {
+        $lignes += "$($p.Poste) : $($p.Conformite)"
+        if ($p.Conformite -eq "NON CONFORME") {
+            foreach ($kb in ($p.ListeManquantes -split ", ")) {
+                $lignes += "    $kb manquante"
+            }
+        }
+        else {
+            $lignes += "    $($p.Erreur)"
+        }
+    }
+    $lignes += ""
+    $lignes += "Le rapport complet est joint ${ag} ce message (SecurityReport.html)."
+
+    # Parametres d'envoi regroupes dans une table (splatting)
+    $mail = @{
+        SmtpServer  = $conf.SmtpServer
+        Port        = $conf.Port
+        From        = $conf.From
+        To          = $conf.To
+        Subject     = $objet
+        Body        = $lignes -join "`r`n"
+        Attachments = $htmlPath
+        Encoding    = [System.Text.Encoding]::UTF8
+        ErrorAction = "Stop"
+    }
+    if ($conf.UseSsl) { $mail.UseSsl = $true }
+
+    # Identifiants eventuels : lus dans un fichier chiffre, jamais ecrits en clair
+    if ($conf.CredentialFile) {
+        $fichierCred = [Environment]::ExpandEnvironmentVariables($conf.CredentialFile)
+        if (Test-Path $fichierCred) {
+            $mail.Credential = Import-Clixml -Path $fichierCred
+        }
+        else {
+            Write-Warning "Fichier d'identifiants SMTP introuvable : $fichierCred"
+        }
+    }
+
+    try {
+        Send-MailMessage @mail
+        Write-Journal -Path $log -Champs "Notification envoyee a $($conf.To)"
+        Write-Host "Notification envoyee a $($conf.To)"
+    }
+    catch {
+        $message = ($_.Exception.Message -replace '\s+', ' ').Trim()
+        Write-Journal -Path $log -Champs "ERREUR", "Notification non envoyee", $message
+        Write-Warning "Notification non envoyee : $message"
+    }
+}
 
 Write-Journal -Path $log -Champs "Fin de l'audit"

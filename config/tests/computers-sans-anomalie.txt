@@ -1,0 +1,2 @@
+# Inventaire de test : uniquement le poste accessible
+PC01;192.168.56.102

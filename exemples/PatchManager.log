@@ -10,3 +10,23 @@
 10/10/2026 01:30:28 ; PC03 ; Inaccessible ; Aucune reponse au ping
 10/10/2026 01:30:28 ; Rapport genere
 10/10/2026 01:30:28 ; Fin de l'audit
+10/10/2026 01:48:10 ; Debut de l'audit
+10/10/2026 01:48:14 ; PC01 ; Accessible
+10/10/2026 01:48:14 ; PC01 ; Non conforme ; KB5124010
+10/10/2026 01:48:17 ; PC03 ; Inaccessible ; Aucune reponse au ping
+10/10/2026 01:48:17 ; Rapport genere
+10/10/2026 01:48:18 ; Notification envoyee a admin@entreprise.local
+10/10/2026 01:48:18 ; Fin de l'audit
+10/10/2026 01:58:30 ; Debut de l'audit
+10/10/2026 01:58:36 ; PC01 ; Accessible
+10/10/2026 01:58:36 ; PC01 ; Conforme
+10/10/2026 01:58:36 ; Rapport genere
+10/10/2026 01:58:36 ; Aucune anomalie ; Pas de notification
+10/10/2026 01:58:36 ; Fin de l'audit
+10/10/2026 02:01:50 ; Debut de l'audit
+10/10/2026 02:01:55 ; PC01 ; Accessible
+10/10/2026 02:01:55 ; PC01 ; Non conforme ; KB5124010
+10/10/2026 02:01:59 ; PC03 ; Inaccessible ; Aucune reponse au ping
+10/10/2026 02:01:59 ; Rapport genere
+10/10/2026 02:02:01 ; ERREUR ; Notification non envoyee ; Impossible de se connecter au serveur distant
+10/10/2026 02:02:01 ; Fin de l'audit

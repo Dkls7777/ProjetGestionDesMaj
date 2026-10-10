@@ -1,0 +1,3 @@
+# Politique de test : uniquement des KB presentes sur PC01
+KB5065426
+KB5054156
