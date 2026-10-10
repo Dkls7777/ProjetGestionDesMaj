@@ -11,3 +11,4 @@ secrets/
 *.iso
 Thumbs.db
 ~$*
+rapport/*.docx

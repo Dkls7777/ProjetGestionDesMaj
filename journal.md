@@ -405,10 +405,17 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
 ### README
 - `README.md` réécrit : chaîne de traitement, structure du dépôt, environnement de test, utilisation (compte administrateur ou JEA), prérequis, mesures de sécurité, limites connues.
 
+### Rapport final, première version
+- `rapport/Rapport-PatchManagement-DOSSOU-Sam.docx` : 33 pages, page de garde, sommaire automatique (titres de niveaux 1 et 2), 10 sections calquées sur les éléments demandés par le sujet (architecture, fonctionnalités, choix techniques, tests, résultats, sécurisation), 45 figures légendées dont un schéma d'architecture.
+- Les réponses aux questions sont reprises de `rapport/reponses-questions.md`. Les numéros de capture cités renvoient au dossier `captures/`.
+- À l'ouverture dans Word, accepter la mise à jour des champs pour remplir le sommaire.
+- Logo EFREI ajouté sur la page de garde.
+- `rapport/Rapport-PatchManagement-DOSSOU-Sam.pdf` : version PDF de 33 pages, sommaire rempli et cliquable. À régénérer depuis Word (Fichier > Exporter) après toute modification du texte.
+
 ### Reste à faire
 - Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle (à lui demander au prochain cours).
 - Relire les scripts jusqu'à pouvoir expliquer chaque bloc, et reformuler `rapport/reponses-questions.md`.
-- Rapport final Word et PDF (page de garde EFREI, sommaire cliquable, légendes sous les captures).
+- Relire le rapport Word, le reformuler, puis réexporter le PDF.
 - Vidéo de démonstration d'environ 15 minutes.
 - Optionnel, s'il reste du temps : second poste réel PC02 par clonage de PC01, pour montrer un poste conforme et un non conforme dans le même rapport.
 - Optionnel : tester la rotation du journal avec un seuil très bas (`-TailleMaxJournalKo 1`).
