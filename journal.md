@@ -293,6 +293,79 @@ Projet de sécurité des systèmes (S. Benayoune), EFREI ING2. Monôme : DOSSOU 
   - suspendre Windows Update sur un poste de lab dont on veut garder l'état stable. Sans cela, PC01 aurait fini par installer la KB manquante et serait devenu conforme entre deux démonstrations.
   - une erreur applicative peu claire (« disk I/O error ») cachait un problème système : vérifier les ressources de base avant de soupçonner le logiciel.
 
+## État en fin de séance du 10/10/2026 (03h00)
+
+- Parties 1, 2, 3, 4, 6 et 7 terminées et poussées sur GitHub (dernier commit : 0592cde).
+- PC01 éteinte, un seul disque de 32 Go, instantané `Avant-partie-8` pris VM éteinte (capture 077). 48,8 Go libres sur l'hôte.
+- Hyper-V désactivé sur l'hôte (`bcdedit /set hypervisorlaunchtype off`). À réactiver par `auto` si WSL2 ou Docker redeviennent nécessaires.
+- smtp4dev installé dans `C:\Users\dossa\smtp4dev`, arrêté. Sa base a été supprimée, il devrait redémarrer maintenant que le disque a de la place.
+
+## Séance du 11/10/2026 : partie 8
+
+### Reprise
+- PC01 démarrée. Windows Update est bien suspendu, jusqu'au 14/11/2026 (capture 078).
+- Hôte : 45,7 Go libres, `Start-Service WinRM`, `Test-WSMan` vers 192.168.56.102 réussi : l'adresse DHCP de PC01 n'a pas changé (capture 079).
+- `PatchManager.ps1 -Credential $cred -SansNotification` (capture 080) : PC01 toujours NON CONFORME, KB5124010 manquante. Windows Update n'a donc pas installé cette KB avant la suspension, le scénario de démonstration est intact.
+
+### Point 2 : utilisateurs autorisés à ouvrir une session distante
+- Première exécution faite par erreur sur l'hôte DKLS777 (capture 082) : elle renseigne sur le poste d'administration (compte `dossa` administrateur local, groupe Utilisateurs de gestion à distance vide).
+- Vérification sur PC01, lancée depuis l'hôte par `Invoke-Command` (capture 083) :
+  - `Get-PSSessionConfiguration` : le point de connexion par défaut `microsoft.powershell` autorise trois entités, INTERACTIF, BUILTIN\Administrateurs et BUILTIN\Utilisateurs de gestion à distance ;
+  - `Get-LocalUser` : un seul compte actif, `admin`. Administrateur, Invité, DefaultAccount et WDAGUtilityAccount sont désactivés ;
+  - `Get-LocalGroupMember -SID S-1-5-32-544` (Administrateurs) : `admin` et `Administrateur` ;
+  - `Get-LocalGroupMember -SID S-1-5-32-580` (Utilisateurs de gestion à distance) : aucun membre.
+- Conclusion : aujourd'hui, seul le compte `admin` peut ouvrir une session distante sur PC01, et il est administrateur local. La solution fonctionne donc avec beaucoup plus de droits que nécessaire pour lire des correctifs, ce que corrige le point 3.
+- Les groupes sont désignés par leur SID et non par leur nom, qui dépend de la langue du système.
+
+### Point 3 : compte dédié à moindre privilège
+- Création sur PC01 du compte local `svc-patch`, depuis l'hôte, par `Invoke-Command` avec le compte `admin` (capture 084) :
+  - mot de passe saisi par `Read-Host -AsSecureString` et transmis en `SecureString` : il n'apparaît ni dans la commande, ni dans l'historique, ni dans un fichier ;
+  - `New-LocalUser -Name "svc-patch" ... -PasswordNeverExpires -UserMayNotChangePassword` ;
+  - `Add-LocalGroupMember -SID S-1-5-32-580 -Member "svc-patch"` : membre du seul groupe Utilisateurs de gestion à distance.
+- Résultat : `svc-patch` n'est pas administrateur. Il peut ouvrir une session WinRM, rien de plus.
+- Erreur de parcours : premier essai refusé, la description du compte dépassait la limite de 48 caractères de `New-LocalUser`.
+- Réserve : `-PasswordNeverExpires` convient à un lab. En production, un compte de service doit avoir une rotation de mot de passe, ou être un compte de service géré (gMSA) dans un domaine Active Directory.
+
+- Test du compte `svc-patch` sur le point de connexion par défaut (capture 085) :
+  - la connexion WinRM est acceptée, `whoami` renvoie pc01\svc-patch et le test d'appartenance au rôle Administrateur renvoie False ;
+  - `Get-Service wuauserv` fonctionne ;
+  - `Get-CimInstance Win32_OperatingSystem` et `Get-HotFix` échouent avec « Accès refusé » (HRESULT 0x80041003).
+- Analyse : `Get-CimInstance` et `Get-HotFix` interrogent WMI. Dans une session WinRM, l'ouverture de session est de type réseau, et WMI exige alors le droit « Activation à distance » sur l'espace de noms root\cimv2, que seuls les administrateurs possèdent par défaut. Retirer les droits d'administration ne suffit donc pas : le compte restreint ne peut plus faire le travail.
+- Deux solutions possibles : accorder à `svc-patch` des droits WMI sur root\cimv2 (il pourrait alors lire toutes les classes WMI du poste), ou utiliser JEA pour n'exposer que la lecture nécessaire. Choix : JEA, plus restrictif, et demandé au point 7.
+
+### Points 3 et 7 : mise en œuvre de JEA
+- `scripts/jea/Install-JeaPatchAudit.ps1`, à exécuter sur le poste administré avec un compte administrateur. Il crée :
+  - un fichier de rôle `PatchAudit.psrc` qui définit une seule fonction visible, `Get-PatchAudit`, renvoyant la version de Windows, le dernier démarrage, l'état de Windows Update et la liste des KB installées ;
+  - un fichier de session `PatchAudit.pssc` : type `RestrictedRemoteServer` (mode NoLanguage, quasiment aucune commande), `RunAsVirtualAccount` (les commandes tournent sous un compte virtuel temporaire, pas sous le compte de l'appelant), transcription de chaque session, et rôle attribué au seul compte `svc-patch` ;
+  - le point de connexion `PatchAudit`, enregistré par `Register-PSSessionConfiguration`.
+- `scripts/PatchManager.ps1` : nouveau paramètre `-ConfigurationName`. S'il est fourni, le script se connecte à ce point de connexion et n'y appelle que `Get-PatchAudit`.
+- Principe : `svc-patch` n'a aucun droit d'administration. Même si son mot de passe est volé, l'attaquant ne peut lancer qu'une fonction de lecture, et chaque session est enregistrée.
+
+- Installation lancée depuis l'hôte : `Invoke-Command -ComputerName 192.168.56.102 -Credential $cred -FilePath .\scripts\jea\Install-JeaPatchAudit.ps1`.
+- Difficulté : la commande se termine par « L'opération d'entrée/sortie a été abandonnée » (WinRMOperationAborted). Cause : l'enregistrement du point de connexion a redémarré le service WinRM de PC01 malgré `-NoServiceRestart`, ce qui a coupé la session qui exécutait le script. L'installation, elle, était terminée.
+- Vérification (capture 086) : `Test-WSMan` répond, `Get-PSSessionConfiguration` liste `PatchAudit` avec pour seule permission `PC01\svc-patch AccessAllowed`, et les fichiers `.pssc` et `.psrc` sont présents.
+- Leçon : une erreur de transport ne dit rien du résultat de l'opération distante. Il faut vérifier l'état réel du poste avant de relancer.
+
+### Résultat de JEA
+- `Invoke-Command -Credential $credSvc -ConfigurationName PatchAudit -ScriptBlock { Get-PatchAudit }` (capture 087) : toutes les informations reviennent sans erreur, alors que les mêmes lectures étaient refusées sur le point de connexion par défaut.
+- Commandes non autorisées : `Get-Process` (capture 088) et `whoami` (capture 089) renvoient « n'est pas reconnu ». Elles ne sont pas refusées, elles n'existent pas dans la session.
+- `Get-Command` (capture 090) : 9 commandes au total, `Get-PatchAudit` et 8 commandes de base de toute session restreinte (Clear-Host, Exit-PSSession, Get-Command, Get-FormatData, Get-Help, Measure-Object, Out-Default, Select-Object).
+- `PatchManager.ps1 -Credential $credSvc -ConfigurationName PatchAudit -SansNotification` (capture 091) : résultat identique à celui obtenu avec le compte `admin`, PC01 NON CONFORME, KB5124010 manquante.
+- Observation : la liste des KB de PC01 contient maintenant KB5126052, installée par Windows Update avant la suspension. KB5124010 reste absente.
+- Bilan du moindre privilège : l'audit n'utilise plus aucun compte administrateur. Le compte `admin` ne sert plus qu'à l'installation.
+
+### Durcissement final du compte de service
+- `Remove-LocalGroupMember -SID S-1-5-32-580 -Member "svc-patch"` : le groupe Utilisateurs de gestion à distance est de nouveau vide (capture 092). L'accès au point de connexion JEA ne dépend pas de ce groupe, il est accordé par le rôle défini dans le fichier `.pssc`.
+- Vérification (capture 093) : avec `svc-patch`, une session sur le point de connexion par défaut échoue (« Accès refusé », AccessDenied), tandis que `Get-PatchAudit` sur `PatchAudit` fonctionne.
+- État final : `svc-patch` n'appartient à aucun groupe privilégié et ne peut ouvrir qu'une session JEA limitée à une fonction de lecture.
+
+### Traçabilité des sessions JEA
+- Transcription lue dans `C:\ProgramData\JEA\PatchAudit\Transcripts` (capture 094) : heure de début, utilisateur connecté `PC01\svc-patch`, identité d'exécution `WinRM Virtual Users\WinRM VA_6_PC01_svc-patch`, nom de la configuration, commande invoquée et résultat, heure de fin.
+- Le compte virtuel est créé pour la durée de la session et porte le nom de l'appelant : on garde le lien entre l'action et la personne, bien que la commande s'exécute avec d'autres droits.
+
 ### Reste à faire
+- Partie 8 : risques de WinRM, utilisateurs autorisés à ouvrir une session distante, compte dédié à moindre privilège, droits NTFS sur les fichiers produits, règles de pare-feu WinRM (déjà limitées à 192.168.56.1), mode d'authentification et Kerberos, JEA, stratégie de conservation des rapports et journaux.
 - Inviter l'enseignant comme collaborateur du dépôt et déposer le lien sur Moodle.
-- Partie 8 : sécurisation (risques, comptes autorisés, moindre privilège, droits sur les fichiers, pare-feu, authentification, JEA, conservation des journaux).
+- Relire `rapport/reponses-questions.md` et le reformuler.
+- Rapport final Word et PDF (page de garde EFREI, sommaire cliquable, légendes sous les captures).
+- Vidéo de démonstration d'environ 15 minutes.

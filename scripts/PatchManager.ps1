@@ -11,6 +11,7 @@
 # Usage (PowerShell Windows, depuis la racine du depot) :
 #   .\scripts\PatchManager.ps1 -Credential $cred
 #   .\scripts\PatchManager.ps1 -Credential $cred -SansNotification
+#   .\scripts\PatchManager.ps1 -Credential $credSvc -ConfigurationName PatchAudit
 
 param(
     [string]$InventoryPath = (Join-Path $PSScriptRoot "..\config\computers.txt"),
@@ -18,6 +19,9 @@ param(
     [string]$OutputDir     = (Join-Path $PSScriptRoot "..\output"),
     [string]$NotificationConfig = (Join-Path $PSScriptRoot "..\config\notification.psd1"),
     [System.Management.Automation.PSCredential]$Credential,
+    # Nom d'un point de connexion JEA (ex : PatchAudit). S'il est indique, le script
+    # s'y connecte et n'y appelle que la fonction Get-PatchAudit (voir scripts\jea).
+    [string]$ConfigurationName,
     # Pour lancer un audit sans envoyer de mail
     [switch]$SansNotification
 )
@@ -69,7 +73,21 @@ $rapport = foreach ($pc in Get-Inventaire -Path $InventoryPath) {
     }
     else {
         try {
-            $infos = Invoke-Command -ComputerName $pc.AdresseIP -Credential $Credential -ScriptBlock $collecte -ErrorAction Stop
+            $appel = @{
+                ComputerName = $pc.AdresseIP
+                Credential   = $Credential
+                ErrorAction  = "Stop"
+            }
+            if ($ConfigurationName) {
+                # Point de connexion JEA : seule la fonction Get-PatchAudit y est autorisee
+                $appel.ConfigurationName = $ConfigurationName
+                $appel.ScriptBlock       = { Get-PatchAudit }
+            }
+            else {
+                # Point de connexion par defaut : demande un compte administrateur
+                $appel.ScriptBlock = $collecte
+            }
+            $infos = Invoke-Command @appel
             Write-Journal -Path $log -Champs $pc.Poste, "Accessible"
         }
         catch {
