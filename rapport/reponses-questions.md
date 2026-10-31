@@ -118,7 +118,7 @@ Voir captures 083 et 086. Sur PC01, le point de connexion par défaut `microsoft
 
 - Dossier `output` du poste d'administration : accès limité au compte de l'administrateur, à Système et au groupe Administrateurs. Les droits étaient déjà corrects par héritage du profil utilisateur, ils ont été rendus explicites pour ne plus dépendre de l'emplacement du dossier (capture 097).
 - Transcriptions JEA sur PC01 : accès limité à Système et aux Administrateurs.
-- Le dossier `output` et les fichiers `*.log` sont exclus du dépôt Git par `.gitignore`. Seuls des exemples sont versionnés, dans un dépôt privé.
+- Le dossier `output` et les fichiers `*.log` sont exclus du dépôt Git par `.gitignore`. Seuls des exemples issus du lab sont versionnés : ils ne contiennent aucun secret, uniquement des noms de postes, des adresses privées et des numéros de KB.
 
 ### 5. Règles de pare-feu associées à WinRM
 
@@ -164,7 +164,7 @@ Mis en œuvre dans le projet :
 | Modification non autorisée | L'empreinte du rapport est aussi écrite dans le mail de notification : une copie de référence existe hors du poste d'administration. | Code de `PatchManager.ps1` |
 | Suppression | Chaque audit laisse sa propre archive, l'historique ne dépend plus d'un fichier unique écrasé à chaque exécution. | Capture 100 |
 | Croissance sans limite | Rotation du journal au-delà d'une taille maximale (`-TailleMaxJournalKo`), et suppression des archives plus anciennes que la durée de conservation (`-RetentionJours`, 365 jours par défaut). | Code de `PatchManager.ps1`, non déclenché dans le lab |
-| Exposition d'informations | Droits NTFS limités à l'administrateur, Système et Administrateurs sur `output` (les archives en héritent), transcriptions JEA limitées à Système et Administrateurs, dossier `output` exclu du dépôt Git, dépôt privé, aucun secret dans les journaux. | Captures 097 et 098 |
+| Exposition d'informations | Droits NTFS limités à l'administrateur, Système et Administrateurs sur `output` (les archives en héritent), transcriptions JEA limitées à Système et Administrateurs, dossier `output` exclu du dépôt Git, aucun secret dans les journaux. | Captures 097 et 098 |
 
 Proposé, non mis en œuvre :
 
